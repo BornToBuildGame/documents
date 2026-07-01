@@ -1,0 +1,158 @@
+# TDD-03: Realtime Multiplayer
+
+> **Project:** Ultimate Game Engine — Multiplayer Game Server  
+> **Technical Design:** Realtime Multiplayer  
+> **Version:** 1.0  
+> **Last Updated:** 2026-07-01  
+> **Status:** Draft  
+> **Priority:** Technical Architecture
+
+---
+
+## 1. Purpose & Scope
+
+Define the technical design for a realtime multiplayer infrastructure that supports low-latency game state synchronization, presence tracking, and reliable/unreliable message delivery over persistent connections. This system enables a wide range of game genres including FPS, MOBA, RTS, racing, board games, and card games.
+
+---
+
+Refer to [BRD-03](../BRD/03_realtime_multiplayer.md) for the business requirements and [PRD-03](../PRD/03_realtime_multiplayer.md) for the API surface.
+
+---
+
+## 2. Architecture & Design Flow
+
+The multiplayer engine supports client-relayed matches (where packets are forwarded without parsing) and server-authoritative matches (where tick loops evaluate input).
+
+### Connection and Event Relay Sequence
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client A
+    actor Client B
+    participant Server as Server Core
+    participant Registry as Match Registry
+
+    Client A->>Server: HTTP WebSocket Handshake /v2/stream
+    Server->>Server: Authenticate JWT Token
+    Server-->>Client A: WebSocket established
+    
+    Client A->>Server: (WS) match_join {match_id}
+    Server->>Registry: Lookup match & register Client A Presence
+    Registry-->>Server: Presence updated
+    Server-->>Client B: (WS) match_presence_event {joins: [Client A]}
+    Server-->>Client A: (WS) Return list of current presences
+    
+    Client A->>Server: (WS) match_data_send {op_code: 1, data: "..."}
+    Server->>Registry: Lookup match routing (Client-relayed mode)
+    Server-->>Client B: (WS) match_data {sender: Client A, op_code: 1, data: "..."}
+```
+
+---
+
+## 3. Database Schema & Data Models
+
+Active matches are registered in memory, while match registration indices are persisted to the database to support active match lists and queries.
+
+### Raw DDL Schemas
+
+```sql
+CREATE TABLE IF NOT EXISTS match_metadata (
+    match_id           UUID PRIMARY KEY,
+    label              VARCHAR(512) DEFAULT '{}'::varchar NOT NULL,
+    player_count       INT DEFAULT 0 NOT NULL,
+    max_size           INT DEFAULT 16 NOT NULL,
+    authoritative      BOOLEAN DEFAULT FALSE NOT NULL,
+    node               VARCHAR(64) NOT NULL,
+    created_at         TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    ended_at           TIMESTAMPTZ
+);
+```
+
+### Table Indexes
+
+```sql
+-- Index for quick listing of active matches with specific labels
+CREATE INDEX IF NOT EXISTS idx_match_metadata_active_label 
+ON match_metadata (ended_at, authoritative) 
+WHERE ended_at IS NULL;
+```
+
+### In-Memory Structures
+```typescript
+interface Presence {
+  userId: string;
+  sessionId: string;
+  username: string;
+  node: string;
+  status: string; // Custom status JSON string
+  isSpectator: boolean;
+  joinedAt: Date;
+}
+
+interface MatchSessionRegistry {
+  matchId: string;
+  label: string;
+  authoritative: boolean;
+  handlerName?: string;
+  maxSize: number;
+  presences: Map<string, Presence>; // Key: sessionId
+  createdAt: Date;
+}
+```
+
+---
+
+## 4. Algorithmic Logic & Execution Flow
+
+### Connection Heartbeat & Timeout Handling
+1. Upon connection, the socket starts a read timeout tracking window (default: `30 seconds`).
+2. The server sends ping frames at regular intervals (default: `15 seconds`).
+3. If a client fails to reply with a pong or send a message before the timeout elapsed, the connection is considered dead.
+4. Upon disconnect:
+   - The user is placed in a "disconnected" state, starting the `reconnect_grace_sec` grace period (default: `30s`).
+   - If the client reconnects with the same session token within `30s`, they rejoin active matches automatically.
+   - If the grace period expires, they are evicted from all match registries, and presence leave events are broadcast.
+
+### Go WebSocket Message Routing Example
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"github.com/gorilla/websocket"
+)
+
+type Envelope struct {
+	Cid     string          `json:"cid,omitempty"`
+	Payload json.RawMessage `json:"match_data_send,omitempty"`
+}
+
+type MatchDataSend struct {
+	MatchId  string `json:"match_id"`
+	OpCode   int64  `json:"op_code"`
+	Data     string `json:"data"` // base64 encoded
+	Reliable bool   `json:"reliable"`
+}
+
+func RouteMessage(conn *websocket.Conn, envelope []byte, broadcastChan chan<- MatchDataSend) {
+	var env Envelope
+	if err := json.Unmarshal(envelope, &env); err != nil {
+		return
+	}
+
+	if env.Payload != nil {
+		var payload MatchDataSend
+		if err := json.Unmarshal(env.Payload, &payload); err == nil {
+			// Send into processing queue or broadcast directly to other connections
+			broadcastChan <- payload
+		}
+	}
+}
+```
+
+---
+
+## 5. Linked Documents
+- [BRD-03](../BRD/03_realtime_multiplayer.md) (Business Requirements Document)
+- [PRD-03](../PRD/03_realtime_multiplayer.md) (Product Requirements Document)
