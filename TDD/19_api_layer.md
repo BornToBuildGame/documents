@@ -138,6 +138,39 @@ func AuthMiddleware(secretKey string, next http.Handler) http.Handler {
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Rate Limiter Tuning**: Default token bucket: `maxTokens = 100`, `refillRate = 10.0/sec`. For API-heavy game types, allow per-endpoint overrides. Monitor `429` response rates and tune accordingly.
+- **Connection Pooling**: The API layer should use HTTP/2 for gRPC multiplexing and `Keep-Alive` for REST to reduce TCP handshake overhead.
+- **Request Payload Limits**: Max HTTP request body: **256 KB** for REST, **4 MB** for gRPC (protobuf). Enforce at the reverse proxy level.
+- **Response Compression**: Enable gzip/brotli compression for REST responses >1 KB. gRPC uses built-in compression.
+- **Latency Target**: API gateway overhead (middleware pipeline) p99 <5ms excluding handler execution time.
+
+### Security
+- **TLS Configuration**:
+  - Minimum TLS version: **1.2**. Preferred: **1.3**.
+  - Cipher suites: Prefer AEAD ciphers (AES-128-GCM, AES-256-GCM, ChaCha20-Poly1305).
+  - Disable SSLv3, TLS 1.0, TLS 1.1, and RC4/3DES ciphers.
+  - Enable HSTS header with `max-age=31536000; includeSubDomains`.
+- **CORS Configuration**:
+  - `Access-Control-Allow-Origin`: Configurable allowlist of game client domains. Never use `*` in production.
+  - `Access-Control-Allow-Methods`: `GET, POST, PUT, DELETE, OPTIONS`.
+  - `Access-Control-Max-Age`: `86400` (24 hours) to reduce preflight requests.
+- **Security Headers**: Include on all responses:
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Content-Security-Policy: default-src 'none'`
+- **Typed Context Keys**: Replace string-based context keys (`"userId"`, `"username"`) with typed private keys to prevent collisions:
+  ```go
+  type contextKey struct{ name string }
+  var userIDKey = &contextKey{"userId"}
+  ```
+- **Admin API Separation**: Admin/console endpoints must bind to a **separate port** (e.g., 7351) and require `server_key` authentication. Never expose admin endpoints on the public API port.
+- **Request ID Tracing**: Inject a unique `X-Request-ID` header on every request for distributed tracing and audit logging.
+
+---
+
 ## 5. Linked Documents
 - [BRD-19](../BRD/19_api_layer.md) (Business Requirements Document)
 - [PRD-19](../PRD/19_api_layer.md) (Product Requirements Document)

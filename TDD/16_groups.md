@@ -104,6 +104,28 @@ func ValidateJoinLimit(ctx context.Context, db *sql.DB, userID string, category 
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Category Index Efficiency**: The `idx_groups_category_search` index covers the primary search pattern. Ensure `ANALYZE` is run after bulk group creation to update planner statistics.
+- **Join Limit Query**: The `ValidateJoinLimit` query joins `group_edge` with `groups`. For users in many groups, ensure the query plan uses the edge index first, then joins — add `SET enable_hashjoin = off` hints if needed in extreme cases.
+- **Pagination**: Group listing and search must enforce cursor-based pagination (max 100 per page).
+- **Latency Target**: Group list/search queries p99 <30ms.
+
+### Security
+- **Category-Specific Join Limits**: Enforce configurable per-category caps:
+  - Guilds (category=0): max 1 active membership.
+  - Clubs (category=2): max 10 active memberships.
+  - Default: max 100 active memberships per category.
+- **Authorization**: Groups share the same role hierarchy as Guilds (see [TDD-09](./09_guilds_clans.md)). Ensure role checks are applied consistently regardless of group category.
+- **Input Validation**:
+  - `name`: Max 128 characters, non-empty, strip HTML.
+  - `description`: Max 1024 characters.
+  - `category`: Must be within the configured valid range `[0, 127]`.
+- **Cross-Category Abuse**: Prevent users from creating groups across many categories to bypass total membership limits. Enforce a global max of **50 total group memberships per user** across all categories.
+
+---
+
 ## 5. Linked Documents
 - [BRD-16](../BRD/16_groups.md) (Business Requirements Document)
 - [PRD-16](../PRD/16_groups.md) (Product Requirements Document)

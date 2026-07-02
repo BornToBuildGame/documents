@@ -123,6 +123,27 @@ func BeforeAuthenticateEmail(ctx context.Context, logger interface{}, db *sql.DB
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **VM Pool Sizing**: Default `runtime.max_vms = 100`. Each JavaScript VM instance consumes ~10 MB. Total pool memory budget: ~1 GB. Scale pool size linearly with expected concurrent hook/RPC load.
+- **Before Hook Timeout**: Before hooks execute synchronously and block the request pipeline. Max execution time: **5,000ms** (configurable). Hooks exceeding this are terminated and the request proceeds without modification.
+- **After Hook Async Execution**: After hooks run asynchronously and must not block request responses. Use a bounded goroutine pool (max 200 concurrent after-hook executions).
+- **Module Load Time**: All runtime modules must be loaded within **30 seconds** of server boot. If module compilation exceeds this, log `ERROR` and skip the module.
+- **Cron Job Concurrency**: Cron-scheduled jobs must not overlap. If a previous execution is still running when the next trigger fires, skip the trigger and log `WARN`.
+
+### Security
+- **Go Plugin Verification**: Before loading `.so` plugins, verify the file's SHA-256 checksum against a manifest of approved plugins. Reject unsigned or tampered plugins.
+- **Lua Sandbox Hardening**: In addition to disabling `os`, `io`, `dofile`:
+  - Disable `debug` library entirely.
+  - Set memory limit per Lua VM: **64 MB**.
+  - Set instruction count limit: **10,000,000 instructions** per execution to prevent infinite loops.
+- **Hook Error Isolation**: If a before hook throws an error, the error must be caught and returned as a gRPC/HTTP error to the client. It must **not** crash the server or corrupt shared state.
+- **Module Hot-Reload Security**: If runtime module hot-reloading is supported, require admin authentication and audit logging for all reload operations.
+- **Context Isolation**: Ensure each hook/RPC execution receives an isolated context. Shared mutable state between concurrent executions is forbidden — use the Nakama storage engine or database for shared data.
+
+---
+
 ## 5. Linked Documents
 - [BRD-18](../BRD/18_server_runtime_hooks.md) (Business Requirements Document)
 - [PRD-18](../PRD/18_server_runtime_hooks.md) (Product Requirements Document)

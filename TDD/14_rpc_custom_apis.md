@@ -144,6 +144,31 @@ func (r *RpcRegistry) Invoke(ctx context.Context, functionID string, payload str
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **VM Pool Size**: Configure `runtime.max_vms` based on expected concurrent RPC load. Default: **100 VMs**. Each VM consumes ~10 MB memory. Total: ~1 GB for the VM pool.
+- **Execution Timeout**: Default `rpc.execution_timeout_ms = 5000`. For latency-critical RPCs, allow per-function timeout overrides via registration metadata.
+- **VM Recycling**: After a timeout-terminated execution, taint the VM instance and replace it with a fresh one (avoid memory corruption from interrupted state).
+- **Concurrency Queuing**: When all VMs are busy, queue up to **500 pending RPC requests**. Beyond this, return `503 Service Unavailable`.
+- **Latency Target**: RPC round-trip (request → response) p99 <200ms for typical game logic functions.
+
+### Security
+- **Payload Size Limits**:
+  - Max RPC request payload: **16 KB**.
+  - Max RPC response payload: **16 KB**.
+  - Reject oversized payloads before dispatching to the handler VM.
+- **Environment Variable Exposure**: The RPC context `env` map must be **whitelisted**. Only expose non-sensitive configuration keys. Never include: database URLs, API secrets, private keys, or admin credentials.
+- **Per-Function Rate Limiting**: Allow rate limit configuration per RPC function:
+  - Default: **100 calls per minute per user** per function.
+  - High-frequency functions (e.g., heartbeat): configurable up to 600/min.
+  - Sensitive functions (e.g., purchase): max 10/min.
+- **Unauthenticated RPCs**: RPCs registered with `allowUnauthenticated = true` must still be rate-limited by IP address (max 30/min per IP).
+- **Input Sanitization**: RPC payload strings must be validated for maximum length and character encoding (UTF-8 only). Reject payloads with null bytes or invalid codepoints.
+- **Error Information Leakage**: RPC error responses must not expose internal stack traces, database queries, or file paths. Return sanitized error codes and messages only.
+
+---
+
 ## 5. Linked Documents
 - [BRD-14](../BRD/14_rpc_custom_apis.md) (Business Requirements Document)
 - [PRD-14](../PRD/14_rpc_custom_apis.md) (Product Requirements Document)

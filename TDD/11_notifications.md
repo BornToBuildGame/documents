@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS notification (
 CREATE INDEX IF NOT EXISTS idx_notification_user_unread
 ON notification (user_id, create_time DESC)
 WHERE delete_time IS NULL;
+
+-- Index to optimize user deletion cascades and generic user notification queries
+CREATE INDEX IF NOT EXISTS idx_notification_user_id ON notification(user_id);
+
+-- Index to optimize notification TTL expiration queries
+CREATE INDEX IF NOT EXISTS idx_notification_ttl ON notification(delete_time) WHERE delete_time IS NOT NULL;
 ```
 
 ---
@@ -136,6 +142,29 @@ func SendFriendRequestNotification(ctx context.Context, nk interface{}, targetUs
 	return nil
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **TTL Cleanup Index**: Add a dedicated index for the TTL daemon: `CREATE INDEX idx_notification_ttl ON notification(delete_time) WHERE delete_time IS NOT NULL;`
+- **Batched Deletion**: The hourly cleanup daemon must delete in batches of **1,000 rows** per iteration with a 100ms sleep between batches to avoid write amplification and lock contention.
+- **Per-User Cap Enforcement**: Implement the `max_persistent_per_user` (default 1,000) cleanup as: query the 1,001st oldest notification per user; if found, delete all older records.
+- **Notification Table Partitioning**: For deployments with >50M notification records, partition by `create_time` (monthly).
+- **Latency Target**: Real-time notification delivery p99 <10ms for online recipients.
+
+### Security
+- **Notification Flood Prevention**:
+  - Max **50 notifications per recipient per hour** from server-side code.
+  - Max **10 notifications per sender per minute** to any single recipient.
+  - System-generated notifications (code < 0) are exempt from sender rate limits.
+- **Content Validation**:
+  - `subject`: Max 256 characters, strip HTML tags.
+  - `content` JSONB: Max **2 KB**.
+  - `code`: Must be within `[-128, 32767]` range (negative reserved for system).
+- **Sender Impersonation Prevention**: The `sender_id` must be the authenticated user's ID or null (system). Clients cannot specify arbitrary sender IDs.
+- **Sensitive Content**: Notification content may contain PII (usernames, friend requests). Ensure notification list endpoints require authentication and only return the authenticated user's notifications.
 
 ---
 

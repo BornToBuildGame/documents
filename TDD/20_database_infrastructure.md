@@ -137,6 +137,33 @@ func InitDatabasePool(driverName string, dataSourceName string, maxOpen int, max
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Connection Pool Tuning**:
+  - `MaxOpenConns`: Set to **2× CPU cores** on the database server (e.g., 32 for a 16-core server).
+  - `MaxIdleConns`: Set to 50% of `MaxOpenConns`.
+  - `ConnMaxLifetime`: **5 minutes** to prevent stale connections from accumulating.
+- **Statement Timeout**: Set PostgreSQL `statement_timeout = 30000` (30 seconds) to prevent runaway queries from holding connections indefinitely.
+- **Connection Health Check**: Use `db.PingContext()` with a 2-second timeout before returning connections from the idle pool.
+- **Read Replica Routing**: Route all `SELECT` queries (leaderboard reads, friend lists, match history) to read replicas. Only `INSERT`/`UPDATE`/`DELETE` and transactional reads hit the primary.
+- **Query Monitoring**: Enable `pg_stat_statements` to track slow queries. Alert on queries exceeding 500ms.
+- **Vacuum & Analyze**: Schedule `VACUUM ANALYZE` nightly on high-write tables (`notification`, `message`, `wallet_ledger`, `leaderboard_record`).
+
+### Security
+- **Encryption at Rest**: Enable PostgreSQL TDE (Transparent Data Encryption) or use encrypted EBS/disk volumes for all database storage.
+- **Encryption in Transit**: Enforce SSL connections between the game server and PostgreSQL (`sslmode=require` minimum, `sslmode=verify-full` recommended).
+- **Database Credentials**: Store database connection strings in environment variables or a secrets manager. Rotate credentials every 90 days.
+- **Backup & Recovery**:
+  - Automated daily backups with **30-day retention**.
+  - WAL archiving for point-in-time recovery (PITR) with a 5-minute RPO.
+  - Monthly backup restoration tests to verify recoverability.
+- **Migration Safety**: Schema migrations must run within a transaction. If any migration step fails, the entire migration must roll back. Never run DDL changes (e.g., `ALTER TABLE`) without a maintenance window for tables with >10M rows.
+- **Access Control**: Use separate PostgreSQL roles for the application (limited to DML) and admin (DDL access). The application role must not have `CREATE`, `DROP`, or `ALTER` permissions.
+- **Audit Logging**: Enable PostgreSQL `pgaudit` extension to log all DDL changes and superuser operations.
+
+---
+
 ## 5. Linked Documents
 - [BRD-20](../BRD/20_database_infrastructure.md) (Business Requirements Document)
 - [PRD-20](../PRD/20_database_infrastructure.md) (Product Requirements Document)

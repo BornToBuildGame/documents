@@ -170,6 +170,30 @@ func UpdateWalletTx(ctx context.Context, db *sql.DB, userID string, changeset ma
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Transaction Lock Duration**: The `SELECT ... FOR UPDATE` on `users.wallet` must be held for <50ms. Minimize logic between lock acquisition and commit.
+- **Ledger Table Growth**: The `wallet_ledger` table grows unboundedly. Implement a retention policy: archive records older than **180 days** to cold storage and prune from the primary table.
+- **Ledger Index**: The `idx_wallet_ledger_user_history` index is critical. Monitor index bloat and schedule `REINDEX` during maintenance windows.
+- **Batch Wallet Updates**: For tournament rewards or bulk grants, batch wallet updates in groups of 50 within a single transaction to reduce round-trips.
+- **Latency Target**: Single wallet mutation p99 <20ms.
+
+### Security
+- **Integer Overflow Protection**: Before applying any changeset, validate:
+  - Each individual delta: must be within `[-1,000,000,000, 1,000,000,000]` (±1B per transaction).
+  - Resulting balance: must be within `[0, 9,999,999,999]` (10B max per currency). Reject with `INVALID_ARGUMENT` if overflow would occur.
+- **Negative Balance Prevention**: Default `economy.allow_negative_balances = false`. When disabled, any changeset that would result in a negative balance must atomically fail the entire transaction.
+- **Server-Only Wallet Operations**: Clients **must never** directly call wallet mutation endpoints. All wallet changes must flow through server-side logic (RPCs, hooks, match handlers). The REST/gRPC wallet endpoints should require `server_key` authentication.
+- **Audit Trail**: Every wallet mutation **must** create a `wallet_ledger` entry. The `metadata` field must include at minimum: `source` (e.g., "iap", "quest_reward", "admin_grant"), `reference_id`, and `timestamp`.
+- **Anomaly Detection**: Alert operators when:
+  - A single user accumulates >100 transactions within 1 minute.
+  - A single transaction delta exceeds 100× the median delta for that currency.
+  - A wallet balance drops from >0 to exactly 0 more than 3 times in 1 hour.
+- **Changeset Validation**: Reject changesets containing unknown currency keys (not in the configured currency whitelist).
+
+---
+
 ## 5. Linked Documents
 - [BRD-13](../BRD/13_economy_system.md) (Business Requirements Document)
 - [PRD-13](../PRD/13_economy_system.md) (Product Requirements Document)

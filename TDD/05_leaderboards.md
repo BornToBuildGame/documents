@@ -83,13 +83,18 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
 ### Table Indexes
 
 ```sql
--- Optimal composite index for querying descending score rankings
+-- Optimal composite index for querying descending score rankings with covering filter columns (Index-Only Scan)
 CREATE INDEX IF NOT EXISTS idx_leaderboard_record_ranking_desc
-ON leaderboard_record (leaderboard_id, score DESC, subscore DESC, update_time ASC);
+ON leaderboard_record (leaderboard_id, score DESC, subscore DESC, update_time ASC)
+INCLUDE (expiry_time);
 
--- Optimal composite index for querying ascending score rankings
+-- Optimal composite index for querying ascending score rankings with covering filter columns (Index-Only Scan)
 CREATE INDEX IF NOT EXISTS idx_leaderboard_record_ranking_asc
-ON leaderboard_record (leaderboard_id, score ASC, subscore ASC, update_time ASC);
+ON leaderboard_record (leaderboard_id, score ASC, subscore ASC, update_time ASC)
+INCLUDE (expiry_time);
+
+-- Index to optimize user lookup across leaderboards and cascade deletes
+CREATE INDEX IF NOT EXISTS idx_leaderboard_record_owner_id ON leaderboard_record(owner_id);
 ```
 
 ---
@@ -130,6 +135,26 @@ WHERE rank_position BETWEEN
     (SELECT rank_position + $3 FROM TargetPlayer)
 ORDER BY rank_position ASC;
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Rank Caching**: For leaderboards exceeding **100,000 records**, precompute ranks using a **materialized view** refreshed every 60 seconds, or use a **Redis sorted set** as a rank cache with O(log N) lookups.
+- **Around-Player Query Optimization**: The `DENSE_RANK()` CTE scans the entire leaderboard. For boards with >1M records, replace with a two-query approach: (1) fetch the player's score, (2) use indexed range scans to fetch neighbors by score value.
+- **Read Replica Routing**: All leaderboard read queries (`GET` list, around-player) must be routed to read replicas. Only score submissions hit the primary.
+- **Pagination**: Enforce max page size of **100 records** per request. Reject requests for larger pages.
+- **Latency Target**: Leaderboard list queries p99 <50ms for boards with ≤100K records.
+
+### Security
+- **Score Submission Rate Limiting**: Max **10 score submissions per minute per user per leaderboard**. Prevents score flooding attacks.
+- **Authoritative Leaderboards**: When `authoritative = TRUE`, clients cannot submit scores directly. Only server-side code (hooks, match handlers) can write records.
+- **Input Validation**:
+  - `score` / `subscore`: Must be within `[0, 9223372036854775807]` (int64 max). Reject negative values for non-increment operators.
+  - `metadata` JSONB: Max 2 KB per record.
+  - Leaderboard `id`: Max 128 characters, alphanumeric, underscores, and hyphens only.
+- **Score Integrity**: Log all score writes to an immutable audit trail. Flag anomalous score jumps (e.g., score increases >10× the median delta) for manual review.
 
 ---
 

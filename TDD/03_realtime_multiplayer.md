@@ -153,6 +153,26 @@ func RouteMessage(conn *websocket.Conn, envelope []byte, broadcastChan chan<- Ma
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Connection Limits**: Max **10,000 concurrent WebSocket connections per node**. Beyond this, return `503 Service Unavailable` and route new connections to other cluster nodes.
+- **Per-Connection Memory**: Allocate fixed-size read/write buffers of **4 KB each** (8 KB total per connection). Use `bufio.Reader` pooling to reclaim buffers on disconnect.
+- **Message Throughput**: Max **60 inbound messages per second per connection**. Excess messages are dropped silently with a rate-limit counter metric.
+- **Broadcast Batching**: Outbound state broadcasts to match participants should be coalesced into a single write per tick cycle rather than per-message fan-out.
+- **Match Registry**: Use a `sync.Map` or sharded concurrent map for O(1) match lookups. Avoid global mutex contention on the registry.
+- **Latency Target**: WebSocket message relay (client→server→client) must complete within **5ms** (p99) for client-relayed matches.
+
+### Security
+- **Handshake Authentication**: The WebSocket upgrade request **must** include a valid JWT in the query parameter or header. Reject unauthenticated upgrades immediately.
+- **Handshake Timeout**: If the client does not complete the WebSocket handshake within **5 seconds**, close the TCP connection.
+- **Message Size Limit**: Max inbound WebSocket frame size: **4 KB** (4096 bytes). Frames exceeding this limit trigger an immediate connection close with code `1009` (Message Too Big).
+- **Origin Validation**: Enforce `Origin` header checking against a configurable allowlist to prevent cross-site WebSocket hijacking.
+- **Presence Spoofing**: Clients must not be able to set arbitrary `userId` or `sessionId` in presence events. The server must inject these from the authenticated session context.
+- **Reconnection Security**: On reconnect within the grace period, re-validate the session token. Expired or revoked tokens must not allow automatic rejoin.
+
+---
+
 ## 5. Linked Documents
 - [BRD-03](../BRD/03_realtime_multiplayer.md) (Business Requirements Document)
 - [PRD-03](../PRD/03_realtime_multiplayer.md) (Product Requirements Document)

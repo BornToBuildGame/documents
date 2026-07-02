@@ -129,6 +129,27 @@ func AddFriendTransaction(ctx context.Context, db *sql.DB, sourceID, destID stri
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Max Friends Per User**: Cap at **1,000 mutual friends** (state=0 edges) per user. Beyond this, reject new friend additions with `RESOURCE_EXHAUSTED`.
+- **Edge Query Optimization**: Friend list queries use the composite index `idx_user_edge_source_lookup`. Ensure pagination is enforced (max 100 per page) and cursor-based to avoid OFFSET performance degradation.
+- **Transaction Isolation**: Friend edge mutations use `READ COMMITTED` isolation level. The bidirectional insert transaction is lightweight (2 upserts) and should complete within 10ms.
+
+### Security
+- **Friend Request Spam Prevention**:
+  - Max **100 pending outbound friend requests** (state=1) per user at any time.
+  - Rate limit: Max **10 friend requests per minute** per user.
+  - Exceeding either limit returns `RESOURCE_EXHAUSTED`.
+- **Block Bypass Prevention**: Before inserting a friend request edge, check if the target has a `state=3` (blocked) edge against the requester. If blocked, return `NOT_FOUND` (do not reveal the block).
+- **Mutual Consent**: Ensure the bidirectional edge model prevents unilateral friend additions. Both users must explicitly call the add endpoint.
+- **Input Validation**:
+  - `user_id` / `username`: Validate format (UUID for user_id, max 64 chars for username).
+  - Prevent self-friending: reject if `source_id == destination_id`.
+- **Privacy**: Friend list visibility should be configurable (public, friends-only, private) via user metadata.
+
+---
+
 ## 5. Linked Documents
 - [BRD-07](../BRD/07_friends_system.md) (Business Requirements Document)
 - [PRD-07](../PRD/07_friends_system.md) (Product Requirements Document)

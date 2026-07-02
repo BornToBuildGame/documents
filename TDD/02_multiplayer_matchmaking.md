@@ -105,6 +105,9 @@ WHERE status = 'queued';
 -- GIN index for querying tickets based on custom property JSON matching
 CREATE INDEX IF NOT EXISTS idx_matchmaking_ticket_properties 
 ON matchmaking_ticket USING gin (properties);
+
+-- Index to optimize matchmaking ticket user lookup and cascade deletes
+CREATE INDEX IF NOT EXISTS idx_matchmaking_ticket_user_id ON matchmaking_ticket(user_id);
 ```
 
 ---
@@ -190,6 +193,27 @@ func EvaluatePairing(t1, t2 Ticket) bool {
 	return diff <= delta1 && diff <= delta2
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Tick Loop Scalability**: The matchmaker evaluates all queued tickets per tick. At >5,000 concurrent tickets, apply **bucket-based skill grouping** (partition tickets into ±100 MMR bands) to reduce pairing evaluation from O(N²) to O(N × B) where B is bucket size.
+- **Maximum Ticket Pool**: Cap at **10,000 active tickets per queue**. Beyond this threshold, reject new submissions with `RESOURCE_EXHAUSTED` and alert operators.
+- **Ticket TTL**: Enforce `expires_at` strictly. Expired tickets must be garbage-collected every tick cycle, not left in the queue.
+- **Memory Budget**: Each ticket should consume ≤2 KB in-memory. With 10,000 tickets, total matchmaker memory ≤20 MB per queue.
+- **Latency Target**: Each matchmaker tick must complete within **500ms** (p99). If tick processing exceeds this, split queues across dedicated goroutines.
+
+### Security
+- **Rate Limiting**: Max **1 active matchmaking ticket per user** at any time. Reject duplicate submissions with `ALREADY_EXISTS`.
+- **Input Validation**:
+  - `skill_rating`: Must be within `[0, 10000]` range. Reject outliers.
+  - `queue_name`: Max 64 characters, alphanumeric and underscore only.
+  - `properties` JSONB: Max 4 KB, max nesting depth of 3.
+  - `min_count` / `max_count`: Must satisfy `2 ≤ min_count ≤ max_count ≤ 100`.
+- **Abuse Prevention**: Track ticket submission frequency per user. If a user submits and cancels >10 tickets within 5 minutes, impose a 5-minute matchmaking cooldown.
+- **Match Token Security**: The `match_token` issued on match formation must be cryptographically random (≥128 bits), single-use, and expire within 30 seconds.
 
 ---
 

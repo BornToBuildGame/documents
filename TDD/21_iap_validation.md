@@ -98,6 +98,9 @@ ON purchase (user_id, create_time DESC);
 CREATE INDEX IF NOT EXISTS idx_subscription_expiry
 ON subscription (user_id, expiry_time DESC)
 WHERE active = TRUE;
+
+-- Index to optimize user subscription lookup and deletion cascades
+CREATE INDEX IF NOT EXISTS idx_subscription_user_id ON subscription(user_id);
 ```
 
 ---
@@ -181,6 +184,29 @@ func ProcessAppleValidationTx(ctx context.Context, db *sql.DB, userID string, p 
 	return tx.Commit()
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Store API Timeout**: Set HTTP client timeout to **10 seconds** for all outbound store verification requests. If the store API does not respond, return `503 Service Unavailable` to the client and allow retry.
+- **Store Response Caching**: Cache validated transaction IDs in-memory (LRU, TTL = 5 minutes) to speed up replay attack checks without hitting the database.
+- **Concurrent Validation**: Support up to **100 concurrent IAP validation requests** per node. Use a semaphore to prevent overloading the store API connections.
+- **Latency Target**: IAP validation round-trip (including store API call) p99 <2,000ms. Database-only replay checks p99 <20ms.
+
+### Security
+- **Environment Enforcement**: In production builds, reject receipts where `environment = 1` (sandbox). Only accept `environment = 2` (production) receipts. This prevents sandbox receipt fraud.
+- **Bundle ID Verification**: After receiving the store API response, verify that the `bundle_id` (Apple) or `packageName` (Google) matches the application's configured identifier. Reject mismatches.
+- **HTTPS Certificate Pinning**: Pin the TLS certificates for Apple (`buy.itunes.apple.com`) and Google Play (`androidpublisher.googleapis.com`) store API endpoints. Reject connections if the certificate chain does not match pinned values.
+- **Refund Clawback Logic**: Implement a webhook endpoint for store server-to-server refund notifications:
+  - On receipt of a refund event, set `purchase.refund_time = NOW()`.
+  - Debit the corresponding virtual currency/items from the user's wallet/storage atomically.
+  - Log the clawback in `wallet_ledger` with `source = "refund_clawback"`.
+- **Webhook Signature Verification**: Validate the HMAC signature or JWT token on all incoming store webhook callbacks. Reject unsigned or tampered notifications.
+- **Rate Limiting**: Max **5 IAP validation requests per minute per user**. Prevents receipt brute-forcing.
+- **Receipt Replay Logging**: When `seen_before = true`, log the event with the original `user_id` and the new requester's `user_id` for fraud investigation.
+- **Subscription Renewal Security**: For subscription validation, verify `expiry_time` against the store API on each validation call. Do not trust client-provided expiry dates.
 
 ---
 

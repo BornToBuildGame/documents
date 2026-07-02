@@ -117,6 +117,32 @@ func UpdateMemberStatus(party *PartySession, userID string, newProperties map[st
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Max Parties Per Node**: Limit to **5,000 concurrent active parties** per server node.
+- **Party Memory Budget**: Each `PartySession` should consume ≤8 KB (with max 16 members). Total party memory ≤40 MB per node.
+- **Leader Promotion Latency**: Leader promotion on disconnect must complete within the same tick as the eviction event (<10ms).
+- **Invitation Cleanup**: Pending invitations older than **5 minutes** should be auto-expired by a background sweep running every 30 seconds.
+
+### Security
+- **MaxSize Enforcement**: The `party_join` handler **must** validate `len(members) < maxSize` before adding a new member. Reject excess joins with `RESOURCE_EXHAUSTED`.
+- **Leader-Only Operations**: Only the party leader can:
+  - Send invitations (`party_invite_send`).
+  - Kick members (`party_remove`).
+  - Promote another member to leader (`party_promote`).
+  - Modify party open/closed status.
+- **Invitation Abuse Prevention**:
+  - Max **20 pending invitations per party** at any time.
+  - Rate limit: Max **5 invitations per minute** per party.
+  - A user can only have **3 pending party invitations** at once to prevent invitation flooding.
+- **Input Validation**:
+  - `max_size`: Must be within `[2, 16]`.
+  - `properties` map: Max 2 KB total size, max 10 keys.
+- **Closed Party Security**: For closed parties (`open = false`), only invited users can join. Joining without an invitation returns `PERMISSION_DENIED`.
+
+---
+
 ## 5. Linked Documents
 - [BRD-08](../BRD/08_parties.md) (Business Requirements Document)
 - [PRD-08](../PRD/08_parties.md) (Product Requirements Document)

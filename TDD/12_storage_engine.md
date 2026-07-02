@@ -72,6 +72,9 @@ ON storage (user_id, collection);
 CREATE INDEX IF NOT EXISTS idx_storage_public_read
 ON storage (collection, key)
 WHERE permission_read = 2;
+
+-- GIN index for querying inside arbitrary JSONB user storage data
+CREATE INDEX IF NOT EXISTS idx_storage_value ON storage USING gin (value);
 ```
 
 ---
@@ -118,6 +121,33 @@ func GenerateVersion(value interface{}) (string, error) {
 	return hex.EncodeToString(hash[:]), nil
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Object Size Limit**: Max `value` JSONB payload: **256 KB** per storage object. Reject writes exceeding this limit with `INVALID_ARGUMENT`.
+- **Per-User Object Quota**: Max **10,000 storage objects per user** across all collections. Track via a counter or periodic count query.
+- **Read Caching**: Frequently accessed public objects (`permission_read = 2`) should be cached in-memory with a TTL of 60 seconds.
+- **Batch Operations**: Support batch read/write of up to **100 objects per request**. Beyond 100, return `INVALID_ARGUMENT`.
+- **Latency Target**: Single object read p99 <10ms. Batch write (100 objects) p99 <200ms.
+- **Version Hash Performance**: MD5 hashing is fast but consider SHA-256 for collision resistance in high-volume deployments.
+
+### Security
+- **Permission Enforcement**: The Go code examples must validate `permission_read` and `permission_write` before every operation:
+  - `permission_write = 0`: Only server-side code can modify. Client writes rejected with `PERMISSION_DENIED`.
+  - `permission_write = 1`: Only the owning user can modify.
+  - `permission_read = 0`: Only server-side code can read. Client reads return `NOT_FOUND`.
+  - `permission_read = 1`: Only the owning user can read.
+  - `permission_read = 2`: Publicly readable by any authenticated user.
+- **Input Validation**:
+  - `collection`: Max 128 characters, alphanumeric and underscores only.
+  - `key`: Max 128 characters, alphanumeric, underscores, and hyphens.
+  - `value`: Must be valid JSON. Reject binary or non-JSON payloads.
+  - JSON nesting depth: Max **10 levels**.
+- **Concurrency Conflict Handling**: When version mismatch occurs on conditional writes, return `409 Conflict` with the current version hash so the client can retry.
+- **Data Isolation**: Ensure collection/key queries are always scoped to `user_id`. Global objects (user_id = nil UUID) require server-side permissions.
 
 ---
 

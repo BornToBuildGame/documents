@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS player_match (
 -- Optimal index for pulling paginated match history for a specific player
 CREATE INDEX IF NOT EXISTS idx_player_match_history_lookup
 ON player_match (user_id, match_id DESC);
+
+-- Index to optimize match cascade deletion performance
+CREATE INDEX IF NOT EXISTS idx_player_match_match_id ON player_match(match_id);
 ```
 
 ---
@@ -162,6 +165,25 @@ func SaveMatchHistoryTx(ctx context.Context, db *sql.DB, matchID string, matchTy
 	return tx.Commit()
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Checkpoint Size Limit**: Max `state` BYTEA column size: **512 KB** (compressed). If the serialized and compressed state exceeds this, skip the checkpoint and log `WARN`.
+- **Checkpoint Frequency**: Default every 600 ticks (~1 minute at 10 TPS). Configurable per match type. More frequent checkpoints increase DB write load.
+- **Orphan Cleanup**: A background daemon runs every 10 minutes to detect and delete `match_state` rows where no active match exists (orphaned by crashes). Query: `DELETE FROM match_state WHERE match_id NOT IN (active_matches)`.
+- **Match History Retention**: Retain `match_history` and `player_match` records for **365 days**. Archive older records to cold storage and prune from the primary database.
+- **Compression**: Use `zlib` compression level 6 (balanced speed/ratio). Level 9 adds latency for marginal size reduction.
+- **Batch Inserts**: When persisting `player_match` records at match end, use a multi-row `INSERT` statement rather than individual inserts per player.
+- **Latency Target**: Checkpoint write p99 <100ms. Match termination transaction p99 <200ms.
+
+### Security
+- **State Integrity**: Checkpointed state is server-authoritative. Clients must never be able to upload or modify `match_state` records directly. All writes flow through the match handler.
+- **History Tampering**: The `match_history` and `player_match` tables should be insert-only for application code. Updates and deletes require admin-level database access.
+- **Player Match Privacy**: A player's match history should only be visible to the player themselves or via server-side admin queries. Public match history requires an explicit `permission_read` flag.
+- **State Compression Security**: The decompression step on recovery must enforce a max decompressed size limit (**5 MB**) to prevent zip bomb attacks from corrupted state data.
 
 ---
 

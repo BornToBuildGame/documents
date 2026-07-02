@@ -108,6 +108,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_custom_id ON users(custom_id) WHERE 
 
 -- Session expiration query index
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expiry ON user_sessions(expires_at) WHERE revoked = FALSE;
+
+-- Index to optimize user session lookup and cascade deletes
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 ```
 
 ---
@@ -174,6 +177,43 @@ func VerifyAndGenerateSession(hashedPassword []byte, suppliedPass string, userID
 	return token, refreshToken, nil
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Throughput Target**: Authentication endpoints must sustain ≥5,000 req/sec per node with p99 latency <100ms.
+- **Bcrypt Work Factor**: Set to `12` (≈250ms per hash on modern hardware). Do not exceed `14` to avoid login latency spikes.
+- **Session Cache**: Active session tokens should be cached in-memory (LRU, TTL = token expiry) to avoid database lookups on every authenticated request.
+- **Connection Pool**: Auth queries should use a dedicated read-replica connection pool to isolate login traffic from write-heavy game operations.
+- **Token Expiry Cleanup**: A background daemon must purge expired sessions from `user_sessions` every 15 minutes using batched deletes (1,000 rows per batch) to avoid table lock contention.
+
+### Security
+- **Brute-Force Protection**:
+  - Track failed login attempts per account and per IP address.
+  - After **5 consecutive failures**, impose a **15-minute temporary lockout** on the account.
+  - After **20 failures from a single IP within 10 minutes**, block the IP for 1 hour.
+  - Log all lockout events with severity `WARN` for security monitoring.
+- **Password Policy**:
+  - Minimum length: **8 characters**.
+  - Must contain at least one uppercase letter, one lowercase letter, and one digit.
+  - Reject passwords found in the top 10,000 common password lists.
+- **JWT Key Management**:
+  - Minimum secret key length: **256 bits** for HS256; **2048 bits** RSA for RS256.
+  - Keys must be loaded from environment variables or a secrets manager (Vault, KMS). Never hardcode.
+  - Support **dual-key verification** during key rotation: accept tokens signed by both old and new keys for a configurable grace window (default 24 hours).
+- **Refresh Token Rotation**:
+  - Issue a new refresh token on every use (single-use rotation).
+  - If a previously used refresh token is presented, revoke the entire token family (potential theft detected).
+- **Session Revocation**: On password change or account disable, revoke **all** active sessions by setting `revoked = TRUE` on all `user_sessions` rows for the user.
+- **Rate Limiting**: Apply per-endpoint token bucket limits:
+  - `/v2/account/authenticate/*`: 10 requests/minute per IP.
+  - `/v2/account/session/refresh`: 30 requests/minute per user.
+- **Input Validation**:
+  - Email: Max 255 characters, RFC 5322 format validation.
+  - Password: Max 128 characters (prevent bcrypt DoS with extremely long inputs).
+  - Username: Max 64 characters, alphanumeric + underscore only.
 
 ---
 

@@ -86,6 +86,13 @@ CREATE TABLE IF NOT EXISTS message (
 CREATE INDEX IF NOT EXISTS idx_message_channel_history
 ON message (channel_id, create_time DESC)
 WHERE deleted = FALSE;
+
+-- Indexes to optimize direct message channel user lookups and deletion cascades
+CREATE INDEX IF NOT EXISTS idx_channel_user_id_one ON channel(user_id_one) WHERE user_id_one IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_channel_user_id_two ON channel(user_id_two) WHERE user_id_two IS NOT NULL;
+
+-- Index to optimize message sender lookup and deletion cascades
+CREATE INDEX IF NOT EXISTS idx_message_sender ON message(sender_id);
 ```
 
 ---
@@ -137,6 +144,29 @@ func SaveMessageAndBroadcast(ctx context.Context, db *sql.DB, senderID string, u
 	return messageID, nil
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Message History Retention**: Retain chat messages for **90 days** by default. A background daemon runs daily to purge messages older than the retention window using batched deletes (5,000 per batch).
+- **Channel Member Cache**: Cache channel membership lookups in-memory (TTL 60 seconds) to avoid database queries on every message send.
+- **Broadcast Fan-Out**: For channels with >50 members, batch outbound WebSocket writes using goroutine worker pools (max 10 concurrent writes per channel).
+- **Message Table Partitioning**: For deployments exceeding 100M messages, partition the `message` table by `create_time` (monthly partitions) for efficient range scans and pruning.
+- **Latency Target**: Message delivery (send → all recipients receive) p99 <20ms for channels with ≤50 online members.
+
+### Security
+- **Message Size Limit**: Max `content` JSONB payload: **4 KB** (4096 bytes). Reject oversized messages with `INVALID_ARGUMENT`.
+- **Spam Rate Limiting**:
+  - Max **5 messages per second per user** across all channels.
+  - Max **30 messages per minute per user per channel**.
+  - Exceeding limits returns `RESOURCE_EXHAUSTED` and increments a spam counter.
+- **Content Moderation**: Provide a `beforeChannelMessageSend` hook point for developers to implement profanity filters, keyword blocking, or external moderation service calls.
+- **Access Control Enforcement**: The channel membership check must happen on **every** message send, not just on join. Verify the sender has not been kicked or the channel has not been deleted.
+- **XSS/Injection Prevention**: The `content` field is stored as JSONB, which is inherently safe against SQL injection. However, client applications must sanitize rendered content to prevent XSS.
+- **DM Privacy**: For DM channels (type=1), ensure only `user_id_one` and `user_id_two` can read messages. No public listing of DM channels.
+- **Message Deletion**: Soft-delete only (`deleted = TRUE`). Hard deletion requires admin API access. Deleted messages are excluded from history queries.
 
 ---
 

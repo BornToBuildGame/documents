@@ -83,10 +83,9 @@ CREATE TABLE IF NOT EXISTS tournament (
 ### Table Indexes
 
 ```sql
--- Index for quick scheduler check of active and pending tournaments
-CREATE INDEX IF NOT EXISTS idx_tournament_active_schedule
-ON tournament (start_time, end_time)
-WHERE end_time IS NULL OR end_time > NOW();
+-- Index for quick scheduler check of active and pending tournaments (start_time and end_time)
+CREATE INDEX IF NOT EXISTS idx_tournament_schedule
+ON tournament (start_time, end_time);
 ```
 
 ---
@@ -147,6 +146,25 @@ func OnTournamentEnd(ctx context.Context, logger interface{}, db *sql.DB, nk int
 	return nil
 }
 ```
+
+---
+
+## 6. Performance & Security Considerations
+
+### Performance
+- **Scheduler Efficiency**: The 30-second scheduler loop queries all tournaments. Use a **next-fire-time priority queue** to avoid scanning completed/inactive tournaments.
+- **Reward Distribution**: Distribute rewards in batched transactions (50 players per batch) to avoid long-held database locks during large tournament endings.
+- **Leaderboard Record Expiry**: Ensure `expiry_time` is indexed and expired records are pruned within 1 hour of occurrence end to reclaim storage.
+- **Concurrent Tournaments**: Support up to **100 active tournaments simultaneously** per server node.
+
+### Security
+- **Reward Idempotency**: Add a `rewarded_at` column (or occurrence-specific flag) to the tournament table. Before distributing rewards, check this flag within the same transaction. This prevents double-reward on scheduler restarts or duplicate fire events.
+- **Authoritative Score Submission**: When `authoritative = TRUE`, only server-side match handlers can submit tournament scores. Client-submitted scores must be rejected.
+- **Max Score Attempts**: Enforce `max_num_score` strictly. Track submission count per player per occurrence and reject excess submissions with `RESOURCE_EXHAUSTED`.
+- **Input Validation**:
+  - `duration`: Must be >0 and ≤604,800 (7 days in seconds).
+  - `reset_schedule`: Validate cron expression syntax before persisting. Reject invalid patterns.
+  - `max_size`: If >0, enforce capacity check atomically during score submission.
 
 ---
 

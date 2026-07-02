@@ -125,6 +125,29 @@ COMMIT;
 
 ---
 
+## 6. Performance & Security Considerations
+
+### Performance
+- **Edge Count Reconciliation**: Run a periodic background job (every 10 minutes) that reconciles `groups.edge_count` with the actual `COUNT(*)` of `group_edge` rows for each group. Log discrepancies and auto-correct.
+- **FOR UPDATE Lock Contention**: The `SELECT ... FOR UPDATE` on the `groups` row during join acceptance can bottleneck for popular guilds. Consider using `SKIP LOCKED` or advisory locks to reduce contention.
+- **Max Guild Size**: Enforce `max_count` (default 100). If a guild's `edge_count >= max_count`, reject joins atomically within the transaction.
+- **Pagination**: Guild member lists and guild search results must be paginated (max 100 per page, cursor-based).
+- **Latency Target**: Guild join/leave transactions p99 <50ms.
+
+### Security
+- **Role-Based Authorization**: Enforce privilege hierarchy strictly on the server side:
+  - Only `state=0` (superadmin) can delete the guild, promote/demote admins, and transfer ownership.
+  - Only `state≤1` (admin+) can kick members, accept join requests, and edit guild metadata.
+  - `state=2` (member) can only read guild info and leave voluntarily.
+- **Guild Name Sanitization**: Validate guild names: max 128 characters, strip leading/trailing whitespace, reject names containing only whitespace or control characters.
+- **Metadata Size Limit**: `metadata` JSONB max **4 KB** per guild. Reject oversized payloads.
+- **Abuse Prevention**:
+  - Rate limit guild creation: max **3 guilds created per user per day**.
+  - Rate limit join requests: max **5 join requests per user per hour** across all guilds.
+- **Soft Delete Protection**: Deleting a guild sets `state=1` but retains data. Ensure deleted guilds are excluded from all search queries and edge lookups.
+
+---
+
 ## 5. Linked Documents
 - [BRD-09](../BRD/09_guilds_clans.md) (Business Requirements Document)
 - [PRD-09](../PRD/09_guilds_clans.md) (Product Requirements Document)
