@@ -58,42 +58,54 @@ sequenceDiagram
 ```sql
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username      VARCHAR(64) UNIQUE NOT NULL,
-    display_name  VARCHAR(128),
-    avatar_url    VARCHAR(512),
-    lang_tag      VARCHAR(18) DEFAULT 'en-US',
-    location      VARCHAR(64),
-    timezone      VARCHAR(64),
-    metadata      JSONB DEFAULT '{}'::jsonb NOT NULL,
-    wallet        JSONB DEFAULT '{}'::jsonb NOT NULL,
-    email         VARCHAR(255),
-    password      BYTEA, -- Bcrypt hash
-    apple_id      VARCHAR(128),
-    google_id     VARCHAR(128),
-    facebook_id   VARCHAR(128),
-    steam_id      VARCHAR(128),
-    gamecenter_id VARCHAR(128),
-    custom_id     VARCHAR(128),
-    edge_count    INT DEFAULT 0 NOT NULL,
-    create_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    update_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    verify_time   TIMESTAMPTZ,
-    disable_time  TIMESTAMPTZ
+    id                        UUID PRIMARY KEY,
+    username                  VARCHAR(128) NOT NULL CONSTRAINT users_username_key UNIQUE,
+    display_name              VARCHAR(255),
+    avatar_url                VARCHAR(512),
+    lang_tag                  VARCHAR(18) NOT NULL DEFAULT 'en',
+    location                  VARCHAR(255),
+    timezone                  VARCHAR(255),
+    metadata                  JSONB NOT NULL DEFAULT '{}',
+    wallet                    JSONB NOT NULL DEFAULT '{}',
+    email                     VARCHAR(255) UNIQUE,
+    password                  BYTEA CHECK (length(password) < 32000),
+    facebook_id               VARCHAR(128) UNIQUE,
+    google_id                 VARCHAR(128) UNIQUE,
+    gamecenter_id             VARCHAR(128) UNIQUE,
+    steam_id                  VARCHAR(128) UNIQUE,
+    custom_id                 VARCHAR(128) UNIQUE,
+    apple_id                  VARCHAR(128) UNIQUE,
+    facebook_instant_game_id  VARCHAR(128) UNIQUE,
+    edge_count                INT NOT NULL DEFAULT 0 CHECK (edge_count >= 0),
+    create_time               TIMESTAMPTZ NOT NULL DEFAULT now(),
+    update_time               TIMESTAMPTZ NOT NULL DEFAULT now(),
+    verify_time               TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
+    disable_time              TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00 UTC'
 );
 
 -- User Device Table
 CREATE TABLE IF NOT EXISTS user_device (
-    id            VARCHAR(128) PRIMARY KEY,
-    user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    create_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    update_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+    PRIMARY KEY (id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+
+    id                  VARCHAR(128) NOT NULL,
+    user_id             UUID NOT NULL,
+    preferences         JSONB NOT NULL DEFAULT '{}',
+    push_token_amazon   VARCHAR(512) NOT NULL DEFAULT '',
+    push_token_android  VARCHAR(512) NOT NULL DEFAULT '',
+    push_token_huawei   VARCHAR(512) NOT NULL DEFAULT '',
+    push_token_ios      VARCHAR(512) NOT NULL DEFAULT '',
+    push_token_web      VARCHAR(512) NOT NULL DEFAULT '',
+
+    UNIQUE (user_id, id)
 );
 
 -- User Tombstone Table
 CREATE TABLE IF NOT EXISTS user_tombstone (
-    user_id       UUID PRIMARY KEY,
-    create_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+    PRIMARY KEY (create_time, user_id),
+
+    user_id        UUID NOT NULL UNIQUE,
+    create_time    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 
@@ -105,11 +117,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apple_id ON users(apple_id) WHERE apple_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_facebook_id ON users(facebook_id) WHERE facebook_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_gamecenter_id ON users(gamecenter_id) WHERE gamecenter_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_steam_id ON users(steam_id) WHERE steam_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_custom_id ON users(custom_id) WHERE custom_id IS NOT NULL;
-
-
-```
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_facebook_instant_game_id ON users(facebook_instant_game_id) WHERE facebook_instant_game_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_display_name_trgm ON users USING GIN (display_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_user_device_user_id ON user_device(user_id);
+`````
 
 ---
 
@@ -178,7 +192,7 @@ func VerifyAndGenerateSession(hashedPassword []byte, suppliedPass string, userID
 
 ---
 
-## 6. Performance & Security Considerations
+## 5. Performance & Security Considerations
 
 ### Performance
 - **Throughput Target**: Authentication endpoints must sustain ≥5,000 req/sec per node with p99 latency <100ms.
@@ -214,6 +228,6 @@ func VerifyAndGenerateSession(hashedPassword []byte, suppliedPass string, userID
 
 ---
 
-## 5. Linked Documents
+## 6. Linked Documents
 - [BRD-01](../BRD/01_user_authentication.md) (Business Requirements Document)
 - [PRD-01](../PRD/01_user_authentication.md) (Product Requirements Document)

@@ -93,6 +93,18 @@ interface MatchSessionRegistry {
    - If the client reconnects with the same session token within `30s`, they rejoin active matches automatically.
    - If the grace period expires, they are evicted from all match registries, and presence leave events are broadcast.
 
+### Presence and Routing in Operational Profiles
+
+State representation and message relay behavior differ based on the deployment scale:
+- **Single-Node Mode:**
+  - **In-Memory Registries:** Active client connections and room registrations are stored locally in a thread-safe map (`sync.Map`) representing `MatchSessionRegistry`.
+  - **Local Relay:** When a client broadcasts data in client-relayed mode, the local node iterates over the local presence map and writes directly to each participant's WebSocket write buffer.
+- **Multi-Node Mode:**
+  - **Redis-Backed Synchronization:** Client connections are distributed across multiple server nodes. Active matches, room registries, and metadata are maintained globally in Redis (`match:metadata:{match_id}`).
+  - **Pub/Sub Broadcasts:** In client-relayed matches, when Node A receives a packet from Client A:
+    - Node A publishes the message payload to a cluster-wide Redis Pub/Sub channel (`match:relay:{match_id}`).
+    - All nodes subscribing to the match channel receive the payload and relay it to their locally connected participants.
+
 ### Go WebSocket Message Routing Example
 
 ```go

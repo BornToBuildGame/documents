@@ -35,7 +35,7 @@ sequenceDiagram
     loop Every 30 seconds
         Engine->>DB: Query scheduled tournaments
         Engine->>Engine: Evaluate active occurrences via cron
-        Engine->>DB: Update 'start_active' timestamps
+        Engine->>DB: Update 'start_time' timestamps
     end
 
     Client->>DB: Submit score (verifies remaining attempts & bounds)
@@ -121,7 +121,7 @@ func OnTournamentEnd(ctx context.Context, logger interface{}, db *sql.DB, nk int
 
 ---
 
-## 6. Performance & Security Considerations
+## 5. Performance & Security Considerations
 
 ### Performance
 - **Scheduler Efficiency**: The 30-second scheduler loop queries all tournaments. Use a **next-fire-time priority queue** to avoid scanning completed/inactive tournaments.
@@ -130,7 +130,7 @@ func OnTournamentEnd(ctx context.Context, logger interface{}, db *sql.DB, nk int
 - **Concurrent Tournaments**: Support up to **100 active tournaments simultaneously** per server node.
 
 ### Security
-- **Reward Idempotency**: Add a `rewarded_at` column (or occurrence-specific flag) to the tournament table. Before distributing rewards, check this flag within the same transaction. This prevents double-reward on scheduler restarts or duplicate fire events.
+- **Reward Idempotency**: Track occurrence-level rewards (e.g. `rewarded_at` timestamps or occurrence flags) in-memory or in a distributed Redis key rather than PostgreSQL. Before distributing rewards, evaluate the flag to prevent duplicate reward distribution on scheduler restarts.
 - **Authoritative Score Submission**: When `authoritative = TRUE`, only server-side match handlers can submit tournament scores. Client-submitted scores must be rejected.
 - **Max Score Attempts**: Enforce `max_num_score` strictly. Track submission count per player per occurrence and reject excess submissions with `RESOURCE_EXHAUSTED`.
 - **Input Validation**:
@@ -140,6 +140,6 @@ func OnTournamentEnd(ctx context.Context, logger interface{}, db *sql.DB, nk int
 
 ---
 
-## 5. Linked Documents
+## 6. Linked Documents
 - [BRD-06](../BRD/06_tournaments.md) (Business Requirements Document)
 - [PRD-06](../PRD/06_tournaments.md) (Product Requirements Document)

@@ -28,7 +28,7 @@ graph TD
         CoreServices -->|Dynamic Dispatch| Runtime[Server Runtime / VM Sandbox]
         
         subgraph CoreServicesLayer [Core Services]
-            Auth[Auth & Session]
+            Auth[Auth & Identity]
             Matchmaker[Matchmaker Engine]
             Social[Social Graph & edge]
             Wallet[Wallet & Economy]
@@ -77,6 +77,23 @@ flowchart TD
     DB_Primary ==>|Asynchronous Replication| DB_Replica
 ```
 
+### 2.3 Single-Node vs. Multi-Node Operational Modes
+
+The game server operates across two execution profiles, allowing seamless transitions from local development to production clustering:
+
+#### Single-Node Profile (Development & Small Scale)
+- **State Localization:** Ephemeral state (matchmaker tickets, active presence, session blocklists) is maintained in local memory structures (Go maps/channels) or a standalone Redis instance.
+- **Authoritative Matches:** All VM sandboxes run within the single process, executing loops on local threads.
+- **Inter-Service Communication:** Handled via local direct method calls, sync primitives, and internal Go channels, introducing zero network overhead.
+- **Storage:** Direct connection from the single node to the primary PostgreSQL database.
+
+#### Multi-Node Profile (Horizontal Production Scale)
+- **Stateless Compute Nodes:** Multiple application nodes run statelessly behind a Layer 7 Load Balancer. User identity is validated cryptographically via stateless JWTs on any node.
+- **Distributed State Mesh:** Ephemeral state is shifted to a distributed Redis Cluster. Tickets are stored in sorted sets, and match locations are tracked in a hash registry.
+- **Redlock Coordination:** Multi-node operations (such as tournament reward sweeps or matchmaking tick checks) use Redis-based distributed locks (Redlock) to ensure only one coordinator node processes a queue at a time.
+- **gRPC Routing Mesh:** Nodes establish a peer-to-peer gRPC mesh. Client WebSocket packets landing on Node A are forwarded over gRPC to Node B if Node B is hosting the client's authoritative match.
+- **Storage Scalability:** Offloads read queries to PostgreSQL read replicas and supports CockroachDB for multi-region scale.
+
 ---
 
 ## 3. Architectural Goals & Constraints
@@ -108,12 +125,11 @@ Custom RPC functions, matchmaking filters, and game loop updates execute in memo
 
 ## 5. High-Level Data Model
 
-Core tables are indexed and related to optimize reads and prevent write amplification:
-- **`users`**: Base identity data with JSONB for wallets.
-- **`user_device`**: Device-linked data for hardware tracking and bans.
-- **`user_edge`**: Directed social adjacency list (`source_id`, `destination_id`, `state`) representing friendships, blocks, and invites.
-- **`leaderboard_record`**: Composite B-Tree index `(leaderboard_id, score, subscore, update_time) INCLUDE (expiry_time)` to support Index-Only Scans.
-- **`storage`**: Key-value data with GIN index on `value` JSONB for deep attribute queries.
+- **`users`**: Base identity data with `wallet` JSONB and social provider links.
+- **`user_device`**: Device-linked data for hardware tracking, push notifications, and bans.
+- **`user_edge`**: Directed social adjacency list `(source_id, state, position)` with unique constraint `(source_id, destination_id)`.
+- **`leaderboard_record`**: Composite index `(leaderboard_id, score DESC, subscore DESC, update_time ASC) INCLUDE (expiry_time)` for rank and tournament query optimization.
+- **`storage`**: Key-value data with GIN index on `value` JSONB supporting JSON path operations.
 
 ---
 

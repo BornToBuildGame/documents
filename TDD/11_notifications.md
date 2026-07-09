@@ -59,31 +59,22 @@ sequenceDiagram
 
 ```sql
 CREATE TABLE IF NOT EXISTS notification (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    subject          VARCHAR(256) NOT NULL,
-    content          JSONB DEFAULT '{}'::jsonb NOT NULL,
-    code             INT DEFAULT 0 NOT NULL,
-    sender_id        UUID REFERENCES users(id) ON DELETE SET NULL, -- Null if system notification
-    persistent       BOOLEAN DEFAULT TRUE NOT NULL,
-    create_time      TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    delete_time      TIMESTAMPTZ -- Used for TTL expiry
+    id              UUID NOT NULL CONSTRAINT notification_id_key UNIQUE,
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject         VARCHAR(255) NOT NULL,
+    content         JSONB DEFAULT '{}'::jsonb NOT NULL,
+    code            SMALLINT NOT NULL, -- Negative values are system reserved
+    sender_id       UUID NOT NULL,
+    create_time     TIMESTAMPTZ DEFAULT now() NOT NULL,
+    PRIMARY KEY (user_id, create_time, id)
 );
 ```
 
 ### Table Indexes
 
 ```sql
--- Optimal index for pulling unread persistent notifications for a logged-in user
-CREATE INDEX IF NOT EXISTS idx_notification_user_unread
-ON notification (user_id, create_time DESC)
-WHERE delete_time IS NULL;
-
--- Index to optimize user deletion cascades and generic user notification queries
-CREATE INDEX IF NOT EXISTS idx_notification_user_id ON notification(user_id);
-
--- Index to optimize notification TTL expiration queries
-CREATE INDEX IF NOT EXISTS idx_notification_ttl ON notification(delete_time) WHERE delete_time IS NOT NULL;
+-- Optimal index for pulling notifications for a logged-in user sorted by creation time
+CREATE INDEX IF NOT EXISTS idx_notification_user_id ON notification(user_id, create_time DESC);
 ```
 
 ---
@@ -92,11 +83,11 @@ CREATE INDEX IF NOT EXISTS idx_notification_ttl ON notification(delete_time) WHE
 
 ### TTL Expiry & Retention Cleanup Daemon
 1. A background daemon runs every `1 hour`.
-2. The daemon executes a query to delete expired notifications:
-   `DELETE FROM notification WHERE delete_time IS NOT NULL AND delete_time < NOW();`
-3. Additionally, a hard cap check is applied. If a user exceeds `notification.max_persistent_per_user` (e.g., 1000):
+2. The daemon executes a query to delete expired notifications older than the configured retention period (e.g. 30 days):
+   `DELETE FROM notification WHERE create_time < NOW() - INTERVAL '30 days';`
+3. Additionally, a hard cap check is applied. If a user exceeds the maximum persistent notifications limit (e.g., 1000):
    - Query and retain only the 1000 newest records.
-   - Delete older unacknowledged persistent notifications.
+   - Delete older notifications.
 
 ### Go Custom Notification Dispatch Example
 
@@ -145,10 +136,10 @@ func SendFriendRequestNotification(ctx context.Context, nk interface{}, targetUs
 
 ---
 
-## 6. Performance & Security Considerations
+## 5. Performance & Security Considerations
 
 ### Performance
-- **TTL Cleanup Index**: Add a dedicated index for the TTL daemon: `CREATE INDEX idx_notification_ttl ON notification(delete_time) WHERE delete_time IS NOT NULL;`
+- **TTL Cleanup Optimization**: Since the primary key is `(user_id, create_time, id)`, lookups and deletion scans by `create_time` are highly efficient.
 - **Batched Deletion**: The hourly cleanup daemon must delete in batches of **1,000 rows** per iteration with a 100ms sleep between batches to avoid write amplification and lock contention.
 - **Per-User Cap Enforcement**: Implement the `max_persistent_per_user` (default 1,000) cleanup as: query the 1,001st oldest notification per user; if found, delete all older records.
 - **Notification Table Partitioning**: For deployments with >50M notification records, partition by `create_time` (monthly).
@@ -168,6 +159,6 @@ func SendFriendRequestNotification(ctx context.Context, nk interface{}, targetUs
 
 ---
 
-## 5. Linked Documents
+## 6. Linked Documents
 - [BRD-11](../BRD/11_notifications.md) (Business Requirements Document)
 - [PRD-11](../PRD/11_notifications.md) (Product Requirements Document)

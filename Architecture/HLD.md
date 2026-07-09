@@ -11,7 +11,30 @@
 
 ## 1. System Topology & Infrastructure
 
-The game server is a distributed, horizontally scalable system designed to run as a multi-node cluster of stateless application nodes behind a high-performance Layer 7 load balancer (e.g., Envoy, HAProxy, or AWS ALB).
+The game server framework supports two distinct topologies: **Single-Node** and **Multi-Node Distributed**.
+
+### 1.1 Single-Node Topology
+
+In local development or small-scale deployments, the game server operates as a monolithic, single-process node. All internal communication is handled in-memory.
+
+```mermaid
+flowchart TD
+    Client[Game Client] -->|gRPC/WebSocket| Node[Single Server Node]
+    
+    subgraph Node [Single Process Server Node]
+        Gateway[Socket Gateway]
+        Reg[Connection Registry]
+        Engine[Local Matchmaker Engine]
+        Matches[Local Sandboxed Match VMs]
+    end
+    
+    Node --> DB[(PostgreSQL Primary)]
+    Node <-->|Local Memory / Standalone Redis| LocalState[(Local State Cache)]
+```
+
+### 1.2 Multi-Node Distributed Topology
+
+For production and high concurrency workloads, the game server scales horizontally as a cluster of stateless compute nodes situated behind a Layer 7 load balancer. Shared state and inter-node synchronization are offloaded to a Redis cluster.
 
 ```mermaid
 flowchart RL
@@ -19,21 +42,21 @@ flowchart RL
     
     subgraph ServerNodeA [Server Node A]
         GatewayA[Socket Gateway]
-        RegA[Session Registry]
+        RegA[Connection Registry]
         EngineA[Matchmaker / Loop Engine]
     end
     
     subgraph ServerNodeB [Server Node B]
         GatewayB[Socket Gateway]
-        RegB[Session Registry]
+        RegB[Connection Registry]
         EngineB[Matchmaker / Loop Engine]
     end
     
     LB --> ServerNodeA
     LB --> ServerNodeB
     
-    ServerNodeA <-->|Redis PubSub & Shared Session Maps| Redis[(Redis Cluster)]
-    ServerNodeB <-->|Redis PubSub & Shared Session Maps| Redis
+    ServerNodeA <-->|Redis PubSub & Shared Connection Maps| Redis[(Redis Cluster)]
+    ServerNodeB <-->|Redis PubSub & Shared Connection Maps| Redis
     
     ServerNodeA --> DB_Primary[(PostgreSQL Primary)]
     ServerNodeB --> DB_Primary
@@ -49,7 +72,7 @@ The Socket Gateway is the entry point for all long-lived, bi-directional client 
 1. Client issues HTTP `GET /v2/stream` with a Bearer JWT token in headers or query parameters.
 2. The Gateway validates the JWT signature, extracts user ID/session ID, and checks the connection rate limits.
 3. Upon success, HTTP connection is upgraded to WebSocket (RFC 6455).
-4. The active connection is registered in the node's local **Session Registry**.
+4. The active connection is registered in the node's local **Connection Registry**.
 
 ### 2.2 Heartbeats and Eviction
 - **Ping Interval**: The server sends a WebSocket ping frame every **15 seconds**.
@@ -110,6 +133,36 @@ flowchart TD
     CheckEnd -->|No| TickTimer
     CheckEnd -->|Yes| Persist[Persist Results to PostgreSQL]
     Persist --> Cleanup[Clean VM Pool & Close Goroutine]
+```
+
+### 4.5 Inter-Node Message Routing Sequence
+
+Depending on the operational mode, message routing behaves as follows:
+- **Single-Node Mode:** WebSocket message inputs bypass external networks and are dispatched directly to local VM goroutine queues using in-memory channels.
+- **Multi-Node Mode:** A distributed Redis Registry maps active `match_id` values to the hosting `node_id`. Nodes use a peer-to-peer gRPC mesh to forward client inputs and broadcast state deltas across node boundaries.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client A as Client A (on Node A)
+    participant NodeA as Server Node A
+    participant Redis as Redis Registry
+    participant NodeB as Server Node B (Match Host)
+    actor Client B as Client B (on Node B)
+
+    Client A->>NodeA: WS Packet: MatchInput {match_id, action}
+    NodeA->>Redis: Query Match Node for match_id
+    Redis-->>NodeA: Return Node B
+    NodeA->>NodeB: gRPC Cluster: ForwardInput {match_id, client_id, action}
+    Note over NodeB: Match loop ticks, processes inputs from A & B
+    ClientB->>NodeB: WS Packet: MatchInput {match_id, action}
+    
+    loop Every Tick (e.g. 30Hz)
+        NodeB->>NodeB: Update match state delta
+        NodeB-->>ClientB: WS Packet: MatchStateBroadcast {delta}
+        NodeB->>NodeA: gRPC Cluster: MatchStateBroadcast {delta}
+        NodeA-->>ClientA: WS Packet: MatchStateBroadcast {delta}
+    end
 ```
 
 ---

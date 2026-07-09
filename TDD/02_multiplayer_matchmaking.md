@@ -78,6 +78,17 @@ Because matchmaking tickets and active matches are ephemeral and highly volatile
      - If `reverse_precision` is active, verify bidirectional compatibility: ensure $T$'s properties also satisfy each candidate ticket's parameters.
      - Group matching candidates up to the queue's `max_count`. If candidates reach `min_count`, form a match.
 
+### Operational Topology Execution
+
+The matchmaking process executes differently depending on the deployment profile:
+- **Single-Node Mode:**
+  - **Memory Localization:** Matchmaking tickets are placed directly into thread-safe in-memory slices. No network roundtrips to Redis are required.
+  - **Local Loop Ticker:** A local background Go goroutine ticks every `1000ms`, evaluating the local queue slices directly. Redlock and distributed lock overhead is bypassed.
+- **Multi-Node Mode:**
+  - **Redis Serialization:** Tickets are serialized and saved via `HSET` to `matchmaker:ticket:{ticket_id}` and indexed by `ZADD` in the sorted set `matchmaker:queue:{queue_name}`.
+  - **Redlock Coordination:** To prevent duplicate match forming or race conditions where Node A and Node B attempt to process the same tickets simultaneously, nodes must acquire a Redis-backed Redlock (`lock:matchmaker:{queue_name}`) before executing the tick algorithm.
+  - **Match Spawning:** Once a match is formed, the coordinator node registers the match mapping `matchmaker:match:{match_id}` in Redis and assigns it to a targeted server node based on resource load.
+
 ### Skill Range Expansion Config
 ```
 Wait Time (seconds) | Skill Delta Range Allowed (±)

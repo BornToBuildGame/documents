@@ -82,6 +82,20 @@ To ensure robustness and isolation, each match runs in its own sandboxed context
      - Invokes the broadcast callback to route state updates.
      - If the handler returns `nil` state, breaks loop to initiate termination.
 
+### Cluster Match Registry and Input Routing
+
+Spawning and execution of authoritative matches behave differently depending on the deployment topology:
+- **Single-Node Mode:**
+  - **Local Loop Spawn:** The matchmaker worker spawns the VM sandbox inside a local Go goroutine on the same node.
+  - **In-Memory Input Queue:** The local gateway listens to WebSocket inputs, queues them directly in the goroutine's memory channel buffer, and ticks locally.
+- **Multi-Node Mode:**
+  - **Distributed Match Registry:** When the coordinator node spawns a match, it registers the match and assigned node location (`node_id`) in the Redis match registry (`matchmaker:match:{match_id}`).
+  - **gRPC Peer-to-Peer Routing:** If Client A sends match input to Node A, but the match registry indicates the match is hosted on Node B:
+    1. Node A intercepts the payload and queries the match location from the Redis registry.
+    2. Node A routes the input payload via an internal gRPC peer connection to Node B.
+    3. Node B appends the payload to the match VM's input queue.
+  - **Distributed State Broadcast:** At the end of the tick loop on Node B, Node B relays state delta broadcasts directly to local participants (Client B) and forwards copies to Node A via gRPC for Client A's delivery.
+
 ### Go Authoritative Match Handler Template
 
 ```go

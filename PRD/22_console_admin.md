@@ -35,6 +35,7 @@ The Console Admin module provides a RESTful API and backend logic to support the
 - **GET `/console/api/audit`**: View the immutable audit log of administrative actions, filtered by admin user or target resource.
 
 ## 3. Security Considerations
-- The Console API must run on a separate port or be shielded by internal network rules.
-- Role-Based Access Control (RBAC) must intercept and validate permissions before executing any endpoint.
-- All mutating actions (`POST`, `PUT`, `DELETE`) executed by a console user must be appended to the `console_audit_log`.
+- **Network Shielding:** The Console API must run on a separate port (`7351`) and should be restricted to internal networks or VPNs.
+- **Fine-Grained Access Control:** Permissions are evaluated using a JSONB configuration (`acl`) specifying allowed resource actions (e.g. `{"admin": true}` or `{"write_players": true}`). Simple integer roles are not used.
+- **Multi-Factor Authentication (MFA):** Supports TOTP-based MFA. If enabled, users must supply a valid authentication code.
+- **Immutable Audit Logging:** All mutating endpoints (`POST`, `PUT`, `DELETE`) executed by a console operator must asynchronously append records to `console_audit_log`. These records must be immutable.

@@ -54,40 +54,52 @@ sequenceDiagram
 ```sql
 CREATE TABLE IF NOT EXISTS leaderboard (
     PRIMARY KEY (id),
-    id VARCHAR(128) NOT NULL,
-    authoritative BOOLEAN NOT NULL DEFAULT FALSE,
-    sort_order SMALLINT NOT NULL DEFAULT 1, -- asc(0), desc(1)
-    operator SMALLINT NOT NULL DEFAULT 0, -- best(0), set(1), increment(2), decrement(3)
+    id             VARCHAR(128) NOT NULL,
+    authoritative  BOOLEAN      NOT NULL DEFAULT FALSE,
+    sort_order     SMALLINT     NOT NULL DEFAULT 1, -- asc(0), desc(1)
+    operator       SMALLINT     NOT NULL DEFAULT 0, -- best(0), set(1), increment(2), decrement(3)
     reset_schedule VARCHAR(64), -- e.g. cron format: "* * * * * * *"
-    metadata JSONB NOT NULL DEFAULT '{}'
+    metadata       JSONB        NOT NULL DEFAULT '{}',
+    create_time    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    category       SMALLINT     NOT NULL DEFAULT 0 CHECK (category >= 0),
+    description    VARCHAR(255) NOT NULL DEFAULT '',
+    duration       INT          NOT NULL DEFAULT 0 CHECK (duration >= 0),
+    end_time       TIMESTAMPTZ  NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
+    join_required  BOOLEAN      NOT NULL DEFAULT FALSE,
+    max_size       INT          NOT NULL DEFAULT 100000000 CHECK (max_size > 0),
+    max_num_score  INT          NOT NULL DEFAULT 1000000 CHECK (max_num_score > 0),
+    title          VARCHAR(255) NOT NULL DEFAULT '',
+    size           INT          NOT NULL DEFAULT 0,
+    start_time     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    enable_ranks   BOOLEAN      NOT NULL DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard_record (
     PRIMARY KEY (leaderboard_id, expiry_time, score, subscore, owner_id),
     FOREIGN KEY (leaderboard_id) REFERENCES leaderboard (id) ON DELETE CASCADE,
-    leaderboard_id VARCHAR(128) NOT NULL,
-    owner_id UUID NOT NULL,
-    username VARCHAR(128),
-    score BIGINT NOT NULL DEFAULT 0 CHECK (score >= 0),
-    subscore BIGINT NOT NULL DEFAULT 0 CHECK (subscore >= 0),
-    num_score INT NOT NULL DEFAULT 1 CHECK (num_score >= 0),
-    max_num_score INT NOT NULL DEFAULT 0 CHECK (max_num_score >= 0),
-    metadata JSONB NOT NULL DEFAULT '{}',
-    create_time TIMESTAMPTZ NOT NULL DEFAULT now(),
-    update_time TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expiry_time TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
+    leaderboard_id VARCHAR(128)  NOT NULL,
+    owner_id       UUID          NOT NULL,
+    username       VARCHAR(128),
+    score          BIGINT        NOT NULL DEFAULT 0 CHECK (score >= 0),
+    subscore       BIGINT        NOT NULL DEFAULT 0 CHECK (subscore >= 0),
+    num_score      INT           NOT NULL DEFAULT 1 CHECK (num_score >= 0),
+    max_num_score  INT           NOT NULL DEFAULT 1000000 CHECK (max_num_score > 0),
+    metadata       JSONB         NOT NULL DEFAULT '{}',
+    create_time    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    update_time    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    expiry_time    TIMESTAMPTZ   NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
+    UNIQUE (owner_id, leaderboard_id, expiry_time)
 );
 ```
 
 ### Table Indexes
 
 ```sql
--- Optimal composite index for querying descending score rankings with covering filter columns
-CREATE INDEX IF NOT EXISTS idx_leaderboard_record_expiry_time_leaderboard_id_idx
-ON leaderboard_record (expiry_time, leaderboard_id);
-
--- Index to optimize user lookup across leaderboards and cascade deletes
-CREATE INDEX IF NOT EXISTS idx_leaderboard_record_owner_id ON leaderboard_record(owner_id);
+CREATE INDEX IF NOT EXISTS leaderboard_create_time_id_idx ON leaderboard (create_time ASC, id ASC);
+CREATE INDEX IF NOT EXISTS duration_start_time_end_time_category_idx ON leaderboard (duration, start_time, end_time DESC, category);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_record_ranking_desc ON leaderboard_record(leaderboard_id, score DESC, subscore DESC, update_time ASC) INCLUDE (expiry_time);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_record_ranking_asc ON leaderboard_record(leaderboard_id, score ASC, subscore ASC, update_time ASC) INCLUDE (expiry_time);
+CREATE INDEX IF NOT EXISTS owner_id_expiry_time_leaderboard_id_idx ON leaderboard_record (owner_id, expiry_time, leaderboard_id);
 ```
 
 ---
@@ -107,7 +119,12 @@ Upon receiving score $S_{new}$ for user $U$ on leaderboard $L$:
   - Cumulative subtraction: save $\max(0, S_{old} - S_{new})$.
 
 ### Rank Caching and Lookups
-To fetch the owner and their surrounding players dynamically, the Ultimate Game Engine server resolves placements from its in-memory state. This eliminates the need to run computationally expensive `DENSE_RANK()` Common Table Expressions (CTEs) on the database. 
+To fetch the owner and their surrounding players dynamically, the Ultimate Game Engine server resolves placements from its in-memory state. This eliminates the need to run computationally expensive `DENSE_RANK()` Common Table Expressions (CTEs) on the database.
+
+In a stateless multi-node cluster, local in-memory rank caches are synchronized using Redis Pub/Sub:
+- **Write Path Invalidation:** When a node writes a new score to PostgreSQL, it publishes an invalidation event containing the `leaderboard_id` to a cluster-wide Redis Pub/Sub channel (`leaderboard:invalidation`).
+- **Cluster Eviction:** All nodes subscribing to the channel receive the invalidation message and immediately evict the stale leaderboard from their local caches.
+- **Lazy Reconstruction:** The next read query for that leaderboard on any node will lazily fetch the records from PostgreSQL (or a read replica) and rebuild the sorted in-memory cache representation. 
 
 ---
 

@@ -69,10 +69,6 @@ users
 ### Communication — Chat (TDD-10)
 
 ```
-users
-↓ 1:N (DM participants)
-channel
-↓ 1:N
 message
 ↑ N:1 (sender)
 users
@@ -137,21 +133,21 @@ subscription
 
 ```
 console_user
-↓ 1:N
+↓ 1:N (logical connection; no foreign key constraint)
 console_audit_log
 ```
 
 ```
-console_acl_template (standalone)
+console_acl_template (standalone template registry)
 ```
 
 ```
-setting (standalone)
+setting (standalone configuration store)
 ```
 
 ```
 users
-↓ 1:1
+↓ 1:N
 users_notes
 ```
 

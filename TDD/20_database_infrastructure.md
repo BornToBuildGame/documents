@@ -78,13 +78,13 @@ CREATE TABLE IF NOT EXISTS schema_version (
 ### Table Indexes
 Optimal indexing on application tables is detailed in the respective feature TDDs:
 - `idx_users_email` (see [TDD-01](./01_user_authentication.md))
-- `idx_matchmaking_ticket_lookup` (see [TDD-02](./02_multiplayer_matchmaking.md))
-- `idx_leaderboard_record_ranking` (see [TDD-05](./05_leaderboards.md))
-- `idx_user_edge_source_lookup` (see [TDD-07](./07_friends_system.md))
-- `idx_message_channel_history` (see [TDD-10](./10_chat_system.md))
-- `idx_notification_user_unread` (see [TDD-11](./11_notifications.md))
-- `idx_storage_user_collection` (see [TDD-12](./12_storage_engine.md))
+- `idx_leaderboard_record_ranking_desc` (see [TDD-05](./05_leaderboards.md))
+- `idx_user_edge_fk_destination_id` (see [TDD-07](./07_friends_system.md))
+- `idx_message_sender` (see [TDD-10](./10_chat_system.md))
+- `idx_notification_user_id` (see [TDD-11](./11_notifications.md))
+- `idx_storage_collection_read_user_id_key` (see [TDD-12](./12_storage_engine.md))
 - `idx_wallet_ledger_user_history` (see [TDD-13](./13_economy_system.md))
+- `idx_purchase_time_user_id_transaction_id` (see [TDD-21](./21_iap_validation.md))
 
 ---
 
@@ -148,7 +148,7 @@ func InitDatabasePool(driverName string, dataSourceName string, maxOpen int, max
 
 ---
 
-## 6. Performance & Security Considerations
+## 5. Performance & Security Considerations
 
 ### Performance
 - **Connection Pool Tuning**:
@@ -175,6 +175,6 @@ func InitDatabasePool(driverName string, dataSourceName string, maxOpen int, max
 
 ---
 
-## 5. Linked Documents
+## 6. Linked Documents
 - [BRD-20](../BRD/20_database_infrastructure.md) (Business Requirements Document)
 - [PRD-20](../PRD/20_database_infrastructure.md) (Product Requirements Document)
