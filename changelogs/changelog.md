@@ -1,5 +1,29 @@
 **
 2026-07-09
+Updated implementation-plan.md to add new Phase 14 (Social Logins Integration), Phase 15 (Leaderboard, Tournament & Social REST/gRPC APIs), and Phase 16 (Script Sandbox VM Bindings) checklists.
+Reason: Closed structural gaps between design specifications (PRDs/TDDs) and the master plan after reviewing authentication, transport, and runtime VMs.
+**
+
+**
+2026-07-09
+Updated implementation-plan.md Phase 11 and Phase 13 checklists to add missing tournament join APIs, join requirement validations, main server entry points, WebSocket packet dispatchers, match lifecycle hooks, and IAP receipt validations.
+Reason: Aligned development plan with true gaps found in codebase audit compared to reference engine specification.
+**
+
+**
+2026-07-09
+Updated Server Runtime & Hooks PRD, TDD, and implementation plan checklist for missing runtime API methods, type-safe hook registrations, sandbox bindings, and API gateway interceptors.
+Reason: Aligned runtime extensibility framework with reference specification, documenting missing Social Graph, Tournament, IAP validation, and Session APIs, and defining type-safe endpoint interceptors and script bindings.
+**
+
+**
+2026-07-09
+Updated Database Design, Storage Engine PRD, TDD, and Implementation Plan for NoSQL Storage Engine features and system user constraints.
+Reason: Resolved missing features (Delete, List, Search), corrected OCC wildcard (*) behavior, aligned listing empty user_id behavior with reference specification, and documented requirement to seed the system user UUID (00000000-0000-0000-0000-000000000000) to prevent foreign key violations.
+**
+
+**
+2026-07-09
 Updated BRD, PRD, TDD, Architecture, and Implementation Plan to align Leaderboard, Tournament, and Party features.
 Reason: Added missing specifications and implementation checklists for Leaderboards (TDD-05), Tournaments (TDD-06), and Ephemeral Parties (TDD-08) to align the framework with the reference architecture's capabilities and multi-node scaling requirements.
 **

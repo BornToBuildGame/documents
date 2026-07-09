@@ -50,9 +50,9 @@ sequenceDiagram
 CREATE TABLE IF NOT EXISTS storage (
     collection       VARCHAR(128) NOT NULL,
     key              VARCHAR(128) NOT NULL,
-    user_id          UUID NOT NULL, -- DEFAULT '00000000-0000-0000-0000-000000000000' for global
+    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- System user UUID '00000000-0000-0000-0000-000000000000' seeded for global storage
     value            JSONB DEFAULT '{}'::jsonb NOT NULL,
-    version          VARCHAR(64) NOT NULL, -- MD5 hash string
+    version          VARCHAR(32) NOT NULL, -- MD5 hash string (32 hex characters)
     permission_read  SMALLINT DEFAULT 1 NOT NULL, -- 0=no read, 1=owner only, 2=public
     permission_write SMALLINT DEFAULT 1 NOT NULL, -- 0=no write (server-only), 1=owner only
     create_time      TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -92,7 +92,11 @@ When performing a write with an expected version:
      ON CONFLICT (collection, key, user_id) 
      DO UPDATE SET value = EXCLUDED.value, version = EXCLUDED.version, update_time = NOW();
      ```
-3. If `version` is provided (e.g., `"old_version_hash"`):
+3. If `version` is `"*"` (wildcard indicating insert-only):
+   - Query if the record exists in the database.
+   - If the record already exists, fail immediately with a version conflict error (HTTP 409 / gRPC `ABORTED`).
+   - If the record does not exist, perform a standard `INSERT` without a conflicting update fallback (to guarantee creation only).
+4. If `version` is a specific hash string (e.g., `"old_version_hash"`):
    - Attempt update with condition:
      ```sql
      UPDATE storage 

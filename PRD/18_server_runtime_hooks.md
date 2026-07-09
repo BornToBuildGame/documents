@@ -118,14 +118,20 @@ type Initializer interface {
 ### Global Server Runtime API Namespace (`nk`)
 Available in all runtime environments (Lua `nk.*`, TS/JS `nk.*`, Go `nk` plugin helper):
 
-| Category | Available Functions |
+| Category | Available Functions / Methods |
 |----------|---------------------|
-| **Account** | `accountGetId(userId)`, `accountUpdateId(userId, metadata, ...)` |
-| **Storage** | `storageRead(readOps)`, `storageWrite(writeOps)`, `storageDelete(deleteOps)` |
-| **Wallet** | `walletUpdate(userId, changeset, metadata, updateLedger)` |
-| **Leaderboard** | `leaderboardCreate(...)`, `leaderboardRecordWrite(...)`, `leaderboardRecordDelete(...)` |
-| **Notification** | `notificationSend(userId, subject, content, code, senderId, persist)` |
-| **Match** | `matchCreate(module, params)`, `matchGet(matchId)`, `matchSignal(matchId, data)` |
+| **Account & Users** | `accountGetId(userId)`, `accountsGetId(userIds)`, `accountUpdateId(userId, metadata, ...)`, `accountDeleteId(userId, record)`, `usersGetId(userIds)`, `usersGetUsername(usernames)`, `usersBanId(userIds)`, `usersUnbanId(userIds)` |
+| **Storage Engine** | `storageRead(readOps)`, `storageWrite(writeOps)`, `storageDelete(deleteOps)`, `storageList(callerId, userId, collection, limit, cursor)`, `storageIndexList(callerId, indexName, query, limit, order, cursor)` |
+| **Wallet & Economy** | `walletUpdate(userId, changeset, metadata, updateLedger)`, `walletsUpdate(updates, updateLedger)`, `walletLedgerUpdate(itemId, metadata)`, `walletLedgerList(userId, limit, cursor)` |
+| **Leaderboards** | `leaderboardCreate(id, authoritative, sort, operator, schedule, metadata, ranks)`, `leaderboardDelete(id)`, `leaderboardList(limit, cursor)`, `leaderboardRecordsList(id, ownerIds, limit, cursor, expiry)`, `leaderboardRecordWrite(id, ownerId, username, score, subscore, metadata, operator)`, `leaderboardRecordDelete(id, ownerId)` |
+| **Tournaments** | `tournamentCreate(...)`, `tournamentDelete(id)`, `tournamentAddAttempt(id, ownerId, count)`, `tournamentJoin(id, ownerId, username)`, `tournamentList(...)`, `tournamentRecordsList(...)`, `tournamentRecordWrite(...)`, `tournamentRecordDelete(...)` |
+| **Groups & Guilds** | `groupsGetId(groupIds)`, `groupCreate(...)`, `groupUpdate(...)`, `groupDelete(id)`, `groupUserJoin(...)`, `groupUserLeave(...)`, `groupUsersAdd(...)`, `groupUsersKick(...)`, `groupUsersPromote(...)`, `groupUsersDemote(...)`, `groupUsersList(id, limit, state, cursor)`, `groupsList(...)` |
+| **Social & Friends** | `friendsList(userId, limit, state, cursor)`, `friendsAdd(userId, username)`, `friendsDelete(userId, username)`, `friendsBlock(userId, username)` |
+| **In-App Purchases** | `purchaseValidateApple(userId, receipt, persist, password)`, `purchaseValidateGoogle(userId, receipt, persist, overrides)`, `purchaseValidateHuawei(...)`, `purchasesList(userId, limit, cursor)`, `purchaseGetByTransactionId(transactionId)` |
+| **Subscriptions** | `subscriptionValidateApple(...)`, `subscriptionValidateGoogle(...)`, `subscriptionsList(userId, limit, cursor)`, `subscriptionGetByProductId(userId, productId)` |
+| **WebSocket Streams** | `streamUserList(mode, subject, subcontext, label, ...)`, `streamUserJoin(...)`, `streamUserLeave(...)`, `streamSend(mode, subject, subcontext, label, data, presences, reliable)`, `streamSendRaw(...)` |
+| **Matchmaker & Match** | `matchCreate(module, params)`, `matchGet(matchId)`, `matchList(limit, authoritative, label, min, max, query)`, `matchSignal(matchId, data)`, `sessionDisconnect(sessionId, reason)` |
+| **System Utilities** | `cronNext(expression, timestamp)`, `cronPrev(expression, timestamp)`, `readFile(path)` |
 
 ---
 
@@ -156,3 +162,4 @@ runtime:
 |---------|------|--------|---------|
 | 1.0 | 2026-07-01 | Engineering | Initial PRD |
 | 1.1 | 2026-07-09 | Engineering | Added Go Initializer interface, Go hook handler signatures with (ctx, logger, db, nk) params |
+| 1.2 | 2026-07-09 | Engineering | Expanded API surface detail to specify all missing Social, Group, Tournament, IAP, Subscription, and WebSocket Stream functions |

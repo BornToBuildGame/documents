@@ -46,6 +46,7 @@ disable_time              TIMESTAMPTZ     DEFAULT '1970-01-01 00:00:00 UTC' NOT 
 Notes:
 - `wallet` stores virtual currency balances as a JSONB map (e.g., `{"coins": 500, "gems": 10}`). See [TDD-13](../TDD/13_economy_system.md) for economy system details.
 - Social provider ID columns (`apple_id`, `google_id`, etc.) support account linking across multiple identity providers.
+- A default system user record with UUID `00000000-0000-0000-0000-000000000000` must be inserted during database initialization. This system account owns global storage objects and acts as the destination fallback for orphaned purchase/subscription records on user deletion.
 
 #### user_device
 
@@ -265,7 +266,7 @@ PRIMARY KEY (collection, key, user_id)
 Notes:
 - NoSQL-style document storage backed by PostgreSQL JSONB.
 - Optimistic concurrency control via `version` (MD5 hash of the value).
-- `user_id = '00000000-0000-0000-0000-000000000000'` denotes global (server-owned) objects.
+- `user_id = '00000000-0000-0000-0000-000000000000'` denotes global (server-owned) objects. The system user record must be seeded in the `users` table to satisfy the foreign key reference constraint.
 
 ### Economy
 

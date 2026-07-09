@@ -12,17 +12,20 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
 |---|---|---|---|
 | 1 | Project Bootstrap & Database Infrastructure | [TDD-20](./TDD/20_database_infrastructure.md) | 🟩 Completed |
 | 2 | Identity & Session Layer | [TDD-01](./TDD/01_user_authentication.md) | 🟩 Completed |
-| 3 | Transport & API Gateway Layer | [TDD-19](./TDD/19_api_layer.md) | 🟩 Completed |
-| 4 | Real-time Socket Gateway & Presence | [TDD-03](./TDD/03_realtime_multiplayer.md), [TDD-17](./TDD/17_presence_system.md) | 🟩 Completed |
-| 5 | Extensibility Runtime & VM Sandbox | [TDD-14](./TDD/14_rpc_custom_apis.md), [TDD-18](./TDD/18_server_runtime_hooks.md) | 🟩 Completed |
-| 6 | Matchmaking & Authoritative Loop | [TDD-02](./TDD/02_multiplayer_matchmaking.md), [TDD-04](./TDD/04_authoritative_game_server.md), [TDD-15](./TDD/15_match_state_persistence.md) | 🟩 Completed |
-| 7 | Social Graph & Groups | [TDD-07](./TDD/07_friends_system.md), [TDD-08](./TDD/08_parties.md), [TDD-09](./TDD/09_guilds_clans.md), [TDD-16](./TDD/16_groups.md) | 🟩 Completed |
-| 8 | Messaging, Chat & Notifications | [TDD-10](./TDD/10_chat_system.md), [TDD-11](./TDD/11_notifications.md) | 🟩 Completed |
-| 9 | Storage Engine & Economy Ledger | [TDD-12](./TDD/12_storage_engine.md), [TDD-13](./TDD/13_economy_system.md), [TDD-21](./TDD/21_iap_validation.md) | 🟩 Completed |
+| 3 | Transport & API Gateway Layer | [TDD-19](./TDD/19_api_layer.md) | `[/]` In Progress |
+| 4 | Real-time Socket Gateway & Presence | [TDD-03](./TDD/03_realtime_multiplayer.md), [TDD-17](./TDD/17_presence_system.md) | `[/]` In Progress |
+| 5 | Extensibility Runtime & VM Sandbox | [TDD-14](./TDD/14_rpc_custom_apis.md), [TDD-18](./TDD/18_server_runtime_hooks.md) | `[/]` In Progress |
+| 6 | Matchmaking & Authoritative Loop | [TDD-02](./TDD/02_multiplayer_matchmaking.md), [TDD-04](./TDD/04_authoritative_game_server.md), [TDD-15](./TDD/15_match_state_persistence.md) | `[/]` In Progress |
+| 7 | Social Graph & Groups | [TDD-07](./TDD/07_friends_system.md), [TDD-08](./TDD/08_parties.md), [TDD-09](./TDD/09_guilds_clans.md), [TDD-16](./TDD/16_groups.md) | `[/]` In Progress |
+| 8 | Messaging, Chat & Notifications | [TDD-10](./TDD/10_chat_system.md), [TDD-11](./TDD/11_notifications.md) | `[/]` In Progress |
+| 9 | Storage Engine & Economy Ledger | [TDD-12](./TDD/12_storage_engine.md), [TDD-13](./TDD/13_economy_system.md), [TDD-21](./TDD/21_iap_validation.md) | `[/]` In Progress |
 | 10 | Console Admin & Monitoring | [TDD-22](./TDD/22_console_admin.md) | 🟩 Completed |
-| 11 | Leaderboard & Tournament Engine | [TDD-05](./TDD/05_leaderboards.md), [TDD-06](./TDD/06_tournaments.md) | 🟩 Completed |
+| 11 | Leaderboard & Tournament Engine | [TDD-05](./TDD/05_leaderboards.md), [TDD-06](./TDD/06_tournaments.md) | `[/]` In Progress |
 | 12 | Ephemeral Party Gateway | [TDD-08](./TDD/08_parties.md) | 🟩 Completed |
-| 13 | Distributed Multi-Node Scaling & Interceptors | [TDD-03](./TDD/03_realtime_multiplayer.md), [TDD-04](./TDD/04_authoritative_game_server.md), [TDD-18](./TDD/18_server_runtime_hooks.md) | 🟩 Completed |
+| 13 | Distributed Multi-Node Scaling & Interceptors | [TDD-03](./TDD/03_realtime_multiplayer.md), [TDD-04](./TDD/04_authoritative_game_server.md), [TDD-18](./TDD/18_server_runtime_hooks.md) | `[/]` In Progress |
+| 14 | Social Logins Integration | [TDD-01](./TDD/01_user_authentication.md) | `[ ]` Pending |
+| 15 | Leaderboard, Tournament & Social REST/gRPC APIs | [TDD-05](./TDD/05_leaderboards.md), [TDD-06](./TDD/06_tournaments.md), [TDD-07](./TDD/07_friends_system.md) | `[ ]` Pending |
+| 16 | Script Sandbox VM Bindings (Lua / JS) | [TDD-14](./TDD/14_rpc_custom_apis.md), [TDD-18](./TDD/18_server_runtime_hooks.md) | `[ ]` Pending |
 
 ---
 
@@ -105,6 +108,11 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` Implement `goInitializer` that captures registrations into `HookRegistry` during `InitModule`
   - `[x]` Implement runtime precedence resolution (Go → Lua → JavaScript)
   - `[x]` Implement SHA-256 checksum verification for `.so` plugin files
+  - `[ ]` Expand `RuntimeModule` interface and implementation in `internal/runtime` to cover all Social (Friends, Groups), Economy (IAP, Subscriptions), Leaderboards/Tournaments, Streams, and Session lifecycle operations
+  - `[ ]` Implement Gopher-Lua sandbox bindings (expose a global `nk` Lua table mapping all `RuntimeModule` methods)
+  - `[ ]` Implement JavaScript/TypeScript VM sandbox engine (QuickJS/V8 loader) and expose `nk` bindings
+  - `[ ]` Implement type-safe hook registration methods in the `Initializer` interface and `HookRegistry` structure
+  - `[ ]` Integrate HTTP/gRPC middleware interceptors in the API server (`server.go`) to dynamically trigger registered before/after request hooks for all endpoints
 * **Testing & Verification Tasks:**
   - `[x]` **Unit Test:** Load scripts with infinite loops or heavy memory allocations and verify execution halts safely at instructions budget or memory limit boundaries.
   - `[x]` **Unit Test:** Verify custom RPC scripts execute in sandbox isolates, returning correct output values without thread-safety race conditions.
@@ -112,6 +120,8 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` **Unit Test:** Verify `goInitializer` registers RPCs, before/after hooks, and events into `HookRegistry`.
   - `[x]` **Unit Test:** Verify panic recovery: a panicking Go RPC handler returns an error instead of crashing the process.
   - `[x]` **Unit Test:** Verify `GoRuntimeManager.HasRPC/HasBeforeHook/HasAfterHook` return correct results.
+  - `[ ]` **Integration Test:** Register a custom before-hook (e.g. `BeforeWriteStorageObjects`) and verify it can validate, modify, or reject client requests.
+  - `[ ]` **Integration Test:** Execute a Lua script that calls `nk.storage_write` and `nk.wallet_update` to verify sandbox-to-host API bridge execution.
   - `[x]` **Verify command:** `go test -v ./internal/runtime/...`
 
 ### Phase 6: Matchmaking & Authoritative Loop (TDD-02, TDD-04, TDD-15)
@@ -159,9 +169,18 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` Implement storage write/read handlers with MD5-based Optimistic Concurrency Control (OCC)
   - `[x]` Implement atomic wallet balance mutations (`SELECT FOR UPDATE` on `users.wallet` column)
   - `[x]` Implement receipt validations and purchase ledger logging
+  - `[x]` Seed system user record (`00000000-0000-0000-0000-000000000000`) in database migrations to satisfy foreign key constraints
+  - `[x]` Correct wildcard `*` write behavior in `storage.go` (assert version conflict if record already exists)
+  - `[x]` Implement batch delete (`DeleteStorageObjects`) with version checks in `storage.go`
+  - `[x]` Implement paginated listing (`ListStorageObjects`) in `storage.go`
+  - `[x]` Implement Storage Index Search with Bleve JSON querying (Lucene/Bleve-like parsing)
+  - `[x]` Implement `StorageService` gRPC protobuf definitions and register the REST endpoints in the API server (`server.go`)
+  - `[x]` Implement `RuntimeModule` storage functions and register bindings in the Go runtime hooks and Gopher-Lua sandbox `nk` table
 * **Testing & Verification Tasks:**
   - `[x]` **Integration Test:** Read/Write objects to the storage engine. Verify OCC write rejects updates with an old version hash, returning a `409 Conflict` error.
   - `[x]` **Integration Test (Concurrency):** Run concurrent ledger wallet balance mutations. Assert database pessimistic lock `FOR UPDATE` prevents double-spends and enforces non-negative wallet constraints under parallel requests. Verify ledger entries are correctly created.
+  - `[x]` **Integration Test:** Verify batch delete OCC logic, paginated listing under empty `user_id` and specific user IDs, and Lucene/Bleve field querying.
+  - `[x]` **Integration Test:** Call server-side runtime storage APIs (`nk.storage_read`, `nk.storage_write`, etc.) from both Go runtime plugins and Lua VM sandbox.
   - `[x]` **Verify command:** `go test -v ./internal/storage/... ./internal/economy/...`
 
 ### Phase 10: Console Admin & Monitoring (TDD-22)
@@ -187,9 +206,12 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` Implement Redis Pub/Sub invalidation listener to clear/rebuild local rank caches lazily
   - `[x]` Implement `internal/tournament` cron scheduler checking active occurrences every 30s
   - `[x]` Implement `OnTournamentEnd` hook invocation triggering reward wallet mutations inside PostgreSQL database transactions
+  - `[ ]` Implement `TournamentJoin` in `internal/tournament/tournament.go` using Nakama's idempotent record insert pattern (`num_score = 0`)
+  - `[ ]` Update `SubmitScore` in `leaderboard.go` to enforce `join_required` validation checks
 * **Testing & Verification Tasks:**
   - `[x]` **Unit Test:** Submit scores with different operators and verify calculated leaderboard placements.
   - `[x]` **Integration Test:** Verify cron parser triggers active tournament states and runs tournament end reward hooks.
+  - `[ ]` **Integration Test:** Join a tournament and submit a score; verify score submission without joining on a `join_required` tournament fails.
   - `[x]` **Verify command:** `go test -v ./internal/leaderboard/... ./internal/tournament/...`
 
 ### Phase 12: Ephemeral Party Gateway (TDD-08)
@@ -209,10 +231,50 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` Implement authoritative match labeling index registry and active search query endpoints
   - `[x]` Implement gRPC peer-to-peer input forwarding mesh routing client commands between server nodes
   - `[x]` Wire runtime before/after hooks registry execution interceptors into all main database and authentication API endpoints
+  - `[ ]` Create `cmd/server/main.go` entry point to initialize, parse configurations, run migrations, and run the server
+  - `[ ]` Mount WebSocket upgrade handler and implement `rtapi.Envelope` packet routing/dispatcher in `socket.go`
+  - `[ ]` Implement standard match lifecycle hooks (`MatchInit`, `MatchJoinAttempt`, `MatchLoop`, etc.) in `MatchLoop` tick runner
+  - `[ ]` Implement Google Play and Apple App Store receipt validation logic and local ledger storage in `internal/economy`
+  - `[ ]` Implement Chat message broadcast routing inside `StreamRegistry` in `internal/chat`
 * **Testing & Verification Tasks:**
   - `[x]` **Integration Test:** Run multi-node cluster tests, forwarding inputs over gRPC and verifying state is relayed across nodes.
   - `[x]` **Integration Test:** Verify custom before/after runtime hooks execute and intercept auth/storage endpoints correctly.
+  - `[ ]` **Integration Test:** Boot the compiled server binary; connect a WebSocket client, send a chat message, and verify routing and delivery.
+  - `[ ]` **Integration Test:** Run an authoritative match loop executing custom Go/Lua plugin handlers.
   - `[x]` **Verify command:** `go test -v ./internal/socket/... ./internal/match/...`
+
+### Phase 14: Social Logins Integration (TDD-01)
+* **Implementation Tasks:**
+  - `[ ]` Implement Apple Identity Token signature verification fetching keys from Apple JWK certs
+  - `[ ]` Implement Google ID Token verification by querying Google's validation endpoints or cert lists
+  - `[ ]` Implement Facebook Graph API token verification and profile import
+  - `[ ]` Mount social login routes in `server.go` (`/v2/account/authenticate/apple`, etc.)
+* **Testing & Verification Tasks:**
+  - `[ ]` **Integration Test:** Authenticate using mock Apple, Google, and Facebook ID tokens, asserting successful user profile generation.
+
+### Phase 15: Leaderboard, Tournament & Social REST/gRPC APIs (TDD-05, TDD-06, TDD-07, TDD-09)
+* **Implementation Tasks:**
+  - `[ ]` Define `LeaderboardService` and `TournamentService` gRPC protobuf definitions and compile them
+  - `[ ]` Implement gRPC service servers and register them on the API gateway listener
+  - `[ ]` Implement REST handlers and mount endpoints for:
+    - Leaderboards: score writes, record lists, and around-owner lookups
+    - Tournaments: score writes, record lists, list tournaments, and joining
+    - Friends: add, delete, block, list friends with cursors
+    - Groups: create, update, delete, join, leave, list members, demote/promote
+* **Testing & Verification Tasks:**
+  - `[ ]` **Integration Test:** Write scores and query leaderboards/tournaments via REST and gRPC clients.
+  - `[ ]` **Integration Test:** Add friends, send invites, block users, and verify pagination lists.
+  - `[ ]` **Integration Test:** Create groups, join members, update settings, demote admins, and verify role limits.
+
+### Phase 16: Script Sandbox VM Bindings (Lua / JS) (TDD-14, TDD-18)
+* **Implementation Tasks:**
+  - `[ ]` Expose a global `nk` table in the Gopher-Lua sandbox exposing all `RuntimeModule` storage, wallet, and session methods
+  - `[ ]` Expose global `nk` package in the QuickJS sandbox exposing all `RuntimeModule` methods
+  - `[ ]` Map before/after hooks dynamically inside the WebSocket envelope dispatcher to trigger script VM handlers
+  - `[ ]` Map before/after hooks dynamically inside the HTTP middleware router to trigger script VM handlers
+* **Testing & Verification Tasks:**
+  - `[ ]` **Unit Test:** Run a Lua script that writes storage objects and validates wallet balances, asserting correct execution.
+  - `[ ]` **Unit Test:** Run a JavaScript script that hooks into login, modifying request bodies dynamically.
 
 ---
 

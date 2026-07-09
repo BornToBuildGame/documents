@@ -55,10 +55,20 @@ sequenceDiagram
 
 ## 3. Database Schema & Data Models
 
-Tournaments do not use a standalone table. Instead, they are implemented as an extension of the `leaderboard` table (see [TDD-05](./05_leaderboards.md)), leveraging scheduling fields like `duration`, `start_time`, `end_time`, `join_required`, and `max_size`.
+Tournaments do not use a standalone database table. Instead, they leverage the `leaderboard` table (see [TDD-05](./05_leaderboards.md)) for metadata and scheduling rules (`duration`, `start_time`, `end_time`, `join_required`, and `max_size`).
 
-### Backing Records
-Player scores are stored in `leaderboard_record` (see [TDD-05](./05_leaderboards.md)), scoped by the occurrence's `expiry_time`.
+### Backing Records and Tournament Joins
+- **Participation State**: A player's tournament join registration is tracked directly in `leaderboard_record` (see [TDD-05](./05_leaderboards.md)).
+- **Join Operation**: When a player joins a tournament, the engine executes an idempotent insert into `leaderboard_record` with `num_score = 0`, `score = 0`, and `max_num_score` populated.
+  ```sql
+  INSERT INTO leaderboard_record (leaderboard_id, owner_id, expiry_time, username, num_score, max_num_score)
+  VALUES ($1, $2, $3, $4, 0, $5)
+  ON CONFLICT (owner_id, leaderboard_id, expiry_time) DO NOTHING
+  ```
+- If `max_size` is defined on the tournament, joining additionally updates the size count inside `leaderboard`:
+  ```sql
+  UPDATE leaderboard SET size = size + 1 WHERE id = $1 AND size < max_size
+  ```
 
 ---
 
@@ -73,7 +83,17 @@ Player scores are stored in `leaderboard_record` (see [TDD-05](./05_leaderboards
      - Set $T_{expiry} = T_{prev} + \text{duration}$.
    - If $T_{current} \ge T_{prev} + \text{duration}$:
      - The occurrence is completed/inactive.
-3. Write active occurrence metadata and update `expiry_time` in individual player `leaderboard_record` inserts to partition scores between occurrences.
+3. Partition player records between occurrences by scoping all query searches and inserts by the calculated occurrence's `expiry_time`.
+
+### Tournament Join & Score Submission Logic
+1. **Join Validation**:
+   - Check if tournament is active (current time falls between $T_{prev}$ and $T_{prev} + \text{duration}$).
+   - Insert idempotent participant record (`num_score = 0`). If a row is affected, increment `size` in `leaderboard` up to `max_size`.
+2. **Score Submission Validation**:
+   - Verify tournament exists and is active.
+   - If `join_required` is enabled:
+     - Check if a record for the player exists in `leaderboard_record` for the current occurrence's `expiry_time`. If no record is found, reject the score submission.
+     - If a record is found, update the score following the operators (best, set, increment, decrement), increment `num_score` by 1, and update timestamps.
 
 ### Go Tournament End Hook Example
 

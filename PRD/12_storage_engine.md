@@ -53,7 +53,7 @@ Storage engine operations are exposed over REST and gRPC. To guarantee security,
     ]
   }
   ```
-  *(Note: `version` can be provided for optimistic concurrency/conditional writes).*
+  *(Note: `version` can be provided for optimistic concurrency/conditional writes. Provide a specific version hash to match the existing record version, or `"*"` to specify that the write should succeed only if the object does not exist yet).*
 * **Response Body (200 OK)**:
   ```json
   {
@@ -125,7 +125,7 @@ Storage engine operations are exposed over REST and gRPC. To guarantee security,
 #### 4. List Storage Objects
 * **Endpoint**: `GET /v2/storage/{collection}`
 * **Query Parameters**:
-  * `user_id` (string, optional): Owner filter. If empty, global server objects are queried.
+  * `user_id` (string, optional): Owner filter. If empty or `""`, public records in the collection across all users (where `permission_read = 2`) are queried.
   * `limit` (integer, optional, default: `20`, max: `100`)
   * `cursor` (string, optional): Pagination token.
 * **Response Body (200 OK)**: Same structure as Read Storage Objects, including `next_cursor` pagination field.
