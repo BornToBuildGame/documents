@@ -45,9 +45,7 @@ sequenceDiagram
         DB-->>Server: User record (or create if new)
     end
     
-    Server->>Server: Generate JWT Session Token (expiry 1hr)
-    Server->>DB: Insert new session token record in user_sessions
-    DB-->>Server: Confirmation
+    Server->>Server: Generate Stateless JWT Session Token (expiry 1hr)
     Server-->>Client: Return Session Object {token, refresh_token}
 ```
 
@@ -84,14 +82,18 @@ CREATE TABLE IF NOT EXISTS users (
     disable_time  TIMESTAMPTZ
 );
 
--- Sessions Table
-CREATE TABLE IF NOT EXISTS user_sessions (
-    token         VARCHAR(256) PRIMARY KEY,
+-- User Device Table
+CREATE TABLE IF NOT EXISTS user_device (
+    id            VARCHAR(128) PRIMARY KEY,
     user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    refresh_token VARCHAR(256) NOT NULL,
-    created_at    TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    expires_at    TIMESTAMPTZ NOT NULL,
-    revoked       BOOLEAN DEFAULT FALSE NOT NULL
+    create_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    update_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- User Tombstone Table
+CREATE TABLE IF NOT EXISTS user_tombstone (
+    user_id       UUID PRIMARY KEY,
+    create_time   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 ```
 
@@ -106,11 +108,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_facebook_id ON users(facebook_id) WH
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_steam_id ON users(steam_id) WHERE steam_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_custom_id ON users(custom_id) WHERE custom_id IS NOT NULL;
 
--- Session expiration query index
-CREATE INDEX IF NOT EXISTS idx_user_sessions_expiry ON user_sessions(expires_at) WHERE revoked = FALSE;
 
--- Index to optimize user session lookup and cascade deletes
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 ```
 
 ---
@@ -121,7 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 1. Receive login request containing credentials or third-party token verification.
 2. Calculate/validate credentials:
    - For password logins, match using a bcrypt algorithm with work factor `12`.
-   - For refresh token updates, check token database records to confirm it has not been flagged as `revoked`.
+   - For refresh token updates, cryptographically verify the token and ensure it is not on the distributed blocklist (e.g., Redis).
 3. Build JWT payload claims containing:
    - `sub` (Subject): Player's `user_id`.
    - `usn` (Username): Player's unique username.
@@ -185,9 +183,8 @@ func VerifyAndGenerateSession(hashedPassword []byte, suppliedPass string, userID
 ### Performance
 - **Throughput Target**: Authentication endpoints must sustain ≥5,000 req/sec per node with p99 latency <100ms.
 - **Bcrypt Work Factor**: Set to `12` (≈250ms per hash on modern hardware). Do not exceed `14` to avoid login latency spikes.
-- **Session Cache**: Active session tokens should be cached in-memory (LRU, TTL = token expiry) to avoid database lookups on every authenticated request.
+- **Session Cache**: Active sessions are validated statelessly via JWT signatures, eliminating database lookups on every authenticated request.
 - **Connection Pool**: Auth queries should use a dedicated read-replica connection pool to isolate login traffic from write-heavy game operations.
-- **Token Expiry Cleanup**: A background daemon must purge expired sessions from `user_sessions` every 15 minutes using batched deletes (1,000 rows per batch) to avoid table lock contention.
 
 ### Security
 - **Brute-Force Protection**:
@@ -206,7 +203,7 @@ func VerifyAndGenerateSession(hashedPassword []byte, suppliedPass string, userID
 - **Refresh Token Rotation**:
   - Issue a new refresh token on every use (single-use rotation).
   - If a previously used refresh token is presented, revoke the entire token family (potential theft detected).
-- **Session Revocation**: On password change or account disable, revoke **all** active sessions by setting `revoked = TRUE` on all `user_sessions` rows for the user.
+- **Session Revocation**: On password change or account disable, write the user's ID to a distributed Redis blocklist to reject all active JWTs until they naturally expire.
 - **Rate Limiting**: Apply per-endpoint token bucket limits:
   - `/v2/account/authenticate/*`: 10 requests/minute per IP.
   - `/v2/account/session/refresh`: 30 requests/minute per user.

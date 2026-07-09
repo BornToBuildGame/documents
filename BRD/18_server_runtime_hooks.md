@@ -185,7 +185,7 @@ Define the requirements for the server runtime environment that enables develope
 function InitModule(
   ctx: nkruntime.Context,
   logger: nkruntime.Logger,
-  nk: nkruntime.Nakama,
+  nk: nkruntime.UltimateGameEngine,
   initializer: nkruntime.Initializer
 ) {
   // Register RPC functions

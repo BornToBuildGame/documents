@@ -8,35 +8,6 @@ Entity relationships live in [`ERD.md`](./ERD.md).
 
 ---
 
-## Enum Types
-
-### ticket_status
-
-Source: [TDD-02](../TDD/02_multiplayer_matchmaking.md)
-
-```
-queued
-matched
-cancelled
-expired
-```
-
-Used by: `matchmaking_ticket.status`
-
-### match_status
-
-Source: [TDD-02](../TDD/02_multiplayer_matchmaking.md)
-
-```
-pending
-active
-completed
-cancelled
-```
-
-Used by: `matchmaker_match.status`
-
----
 
 ## Table Definitions
 
@@ -74,84 +45,28 @@ Notes:
 - `wallet` stores virtual currency balances as a JSONB map (e.g., `{"coins": 500, "gems": 10}`). See [TDD-13](../TDD/13_economy_system.md) for economy system details.
 - Social provider ID columns (`apple_id`, `google_id`, etc.) support account linking across multiple identity providers.
 
-#### user_sessions
+#### user_device
 
 Source: [TDD-01](../TDD/01_user_authentication.md)
 
 ```
-token           VARCHAR(256)    PRIMARY KEY
+id              VARCHAR(128)    PRIMARY KEY
 user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE
-refresh_token   VARCHAR(256)    NOT NULL
-created_at      TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-expires_at      TIMESTAMPTZ     NOT NULL
-revoked         BOOLEAN         DEFAULT FALSE NOT NULL
+create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+update_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+```
+
+#### user_tombstone
+
+Source: [TDD-01](../TDD/01_user_authentication.md)
+
+```
+user_id         UUID            PRIMARY KEY
+create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
 ```
 
 ---
 
-### Multiplayer & Matchmaking
-
-#### matchmaking_ticket
-
-Source: [TDD-02](../TDD/02_multiplayer_matchmaking.md)
-
-```
-ticket_id           UUID                PRIMARY KEY DEFAULT gen_random_uuid()
-user_id             UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE
-queue_name          VARCHAR(64)         NOT NULL
-skill_rating        DOUBLE PRECISION    DEFAULT 1000.0 NOT NULL
-region              VARCHAR(32)         NOT NULL
-properties          JSONB               DEFAULT '{}'::jsonb NOT NULL
-party_members       UUID[]              DEFAULT '{}'::uuid[] NOT NULL
-min_count           INT                 NOT NULL
-max_count           INT                 NOT NULL
-count_multiple      INT
-reverse_precision   BOOLEAN             DEFAULT FALSE NOT NULL
-status              ticket_status       DEFAULT 'queued' NOT NULL
-created_at          TIMESTAMPTZ         DEFAULT CURRENT_TIMESTAMP NOT NULL
-expires_at          TIMESTAMPTZ         NOT NULL
-matched_at          TIMESTAMPTZ
-```
-
-Notes:
-- `party_members` stores an array of user UUIDs for party-based matchmaking.
-- `reverse_precision` enables bidirectional compatibility checks during matching.
-
-#### matchmaker_match
-
-Source: [TDD-02](../TDD/02_multiplayer_matchmaking.md)
-
-```
-match_id        UUID            PRIMARY KEY DEFAULT gen_random_uuid()
-queue_name      VARCHAR(64)     NOT NULL
-players         JSONB           NOT NULL                            -- Array of objects: [{"user_id": "...", "username": "..."}]
-match_token     VARCHAR(256)    NOT NULL
-properties      JSONB           DEFAULT '{}'::jsonb NOT NULL
-region          VARCHAR(32)     NOT NULL
-created_at      TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-status          match_status    DEFAULT 'pending' NOT NULL
-```
-
-#### match_metadata
-
-Source: [TDD-03](../TDD/03_realtime_multiplayer.md)
-
-```
-match_id        UUID            PRIMARY KEY
-label           VARCHAR(512)    DEFAULT '{}'::varchar NOT NULL
-player_count    INT             DEFAULT 0 NOT NULL
-max_size        INT             DEFAULT 16 NOT NULL
-authoritative   BOOLEAN         DEFAULT FALSE NOT NULL
-node            VARCHAR(64)     NOT NULL
-created_at      TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-ended_at        TIMESTAMPTZ
-```
-
-Notes:
-- Active matches are primarily held in-memory. This table serves as a persistent registry for match listing and queries.
-- `node` identifies the server node hosting the match.
-
----
 
 ### Competitive
 
@@ -161,13 +76,22 @@ Source: [TDD-05](../TDD/05_leaderboards.md)
 
 ```
 id              VARCHAR(128)    PRIMARY KEY
-sort_order      INT             DEFAULT 1 NOT NULL                  -- 0=ascending, 1=descending
-operator        INT             DEFAULT 0 NOT NULL                  -- 0=best, 1=set, 2=increment
+authoritative   BOOLEAN         DEFAULT FALSE NOT NULL
+sort_order      SMALLINT        DEFAULT 1 NOT NULL                  -- 0=ascending, 1=descending
+operator        SMALLINT        DEFAULT 0 NOT NULL                  -- 0=best, 1=set, 2=increment, 3=decrement
 reset_schedule  VARCHAR(64)                                         -- Cron expression
 metadata        JSONB           DEFAULT '{}'::jsonb NOT NULL
-authoritative   BOOLEAN         DEFAULT FALSE NOT NULL
-category        INT             DEFAULT 0 NOT NULL
 create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+category        INT             DEFAULT 0 NOT NULL
+description     VARCHAR(255)    DEFAULT '' NOT NULL
+duration        INT             DEFAULT 0 NOT NULL
+end_time        TIMESTAMPTZ     DEFAULT '1970-01-01 00:00:00 UTC' NOT NULL
+join_required   BOOLEAN         DEFAULT FALSE NOT NULL
+max_size        INT             DEFAULT 100000000 NOT NULL
+max_num_score   INT             DEFAULT 100000000 NOT NULL
+title           VARCHAR(255)    DEFAULT '' NOT NULL
+size            INT             DEFAULT 0 NOT NULL
+start_time      TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
 ```
 
 #### leaderboard_record
@@ -176,50 +100,24 @@ Source: [TDD-05](../TDD/05_leaderboards.md)
 
 ```
 leaderboard_id  VARCHAR(128)    NOT NULL REFERENCES leaderboard(id) ON DELETE CASCADE
+expiry_time     TIMESTAMPTZ     NOT NULL DEFAULT '1970-01-01 00:00:00+00'
+score           BIGINT          DEFAULT 0 NOT NULL                  -- CHECK (score >= 0)
+subscore        BIGINT          DEFAULT 0 NOT NULL                  -- CHECK (subscore >= 0)
 owner_id        UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE
-username        VARCHAR(64)     NOT NULL
-score           BIGINT          NOT NULL
-subscore        BIGINT          DEFAULT 0 NOT NULL
-num_score       INT             DEFAULT 1 NOT NULL                  -- Number of submissions
+username        VARCHAR(128)
+num_score       INT             DEFAULT 1 NOT NULL                  -- Number of submissions, CHECK (num_score >= 0)
+max_num_score   INT             DEFAULT 0 NOT NULL                  -- Max submissions limit, 0=unlimited, CHECK (max_num_score >= 0)
 metadata        JSONB           DEFAULT '{}'::jsonb NOT NULL
-create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-update_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-expiry_time     TIMESTAMPTZ                                         -- For reset intervals
-PRIMARY KEY (leaderboard_id, owner_id)
+create_time     TIMESTAMPTZ     DEFAULT now() NOT NULL
+update_time     TIMESTAMPTZ     DEFAULT now() NOT NULL
+PRIMARY KEY (leaderboard_id, expiry_time, score, subscore, owner_id)
 ```
 
 Notes:
 - Also used by the Tournament system (TDD-06). Tournament scores are scoped via `expiry_time`.
-- Performance: For leaderboards >100K records, around-player queries using `DENSE_RANK()` degrade. Consider Redis Sorted Sets or split range queries.
+- Performance: Ultimate Game Engine maintains an in-memory rank cache to resolve rankings dynamically, bypassing expensive DB queries.
 
-#### tournament
 
-Source: [TDD-06](../TDD/06_tournaments.md)
-
-```
-id              VARCHAR(128)    PRIMARY KEY
-title           VARCHAR(256)    NOT NULL
-description     TEXT
-category        INT             DEFAULT 0 NOT NULL
-sort_order      INT             DEFAULT 1 NOT NULL                  -- 0=ascending, 1=descending
-operator        INT             DEFAULT 0 NOT NULL                  -- 0=best, 1=set, 2=increment
-duration        INT             NOT NULL                            -- Occurrence duration in seconds
-reset_schedule  VARCHAR(64)                                         -- Cron expression
-start_time      TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-end_time        TIMESTAMPTZ                                         -- Total tournament end
-max_size        INT             DEFAULT 0 NOT NULL                  -- Max players per sub-leaderboard (0=infinite)
-max_num_score   INT             DEFAULT 0 NOT NULL                  -- Max score submissions per player
-metadata        JSONB           DEFAULT '{}'::jsonb NOT NULL
-authoritative   BOOLEAN         DEFAULT FALSE NOT NULL
-start_active    TIMESTAMPTZ                                         -- Start of current active occurrence
-create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-```
-
-Notes:
-- Tournament scoring is backed by `leaderboard_record` (see [TDD-05](../TDD/05_leaderboards.md)).
-- `duration` and `reset_schedule` define repeating occurrence windows.
-
----
 
 ### Social
 
@@ -377,60 +275,7 @@ Notes:
 - Optimistic concurrency control via `version` (MD5 hash of the value).
 - `user_id = '00000000-0000-0000-0000-000000000000'` denotes global (server-owned) objects.
 
-#### match_state
 
-Source: [TDD-15](../TDD/15_match_state_persistence.md)
-
-```
-match_id        UUID            NOT NULL
-snapshot_index  INT             NOT NULL
-state           BYTEA           NOT NULL                            -- Compressed binary state payload (zlib)
-tick            BIGINT          DEFAULT 0 NOT NULL
-players         UUID[]          NOT NULL
-metadata        JSONB           DEFAULT '{}'::jsonb NOT NULL
-create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-PRIMARY KEY (match_id, snapshot_index)
-```
-
-Notes:
-- Temporary checkpoint storage for authoritative match state.
-- Cleaned up atomically on match termination (rows deleted after history is written).
-- Max compressed state size: 512 KB.
-
-#### match_history
-
-Source: [TDD-15](../TDD/15_match_state_persistence.md)
-
-```
-match_id        UUID            PRIMARY KEY
-match_type      VARCHAR(64)     NOT NULL
-players         JSONB           NOT NULL                            -- Array of player objects
-winner_id       UUID
-duration        INT             NOT NULL                            -- Duration in seconds
-start_time      TIMESTAMPTZ     NOT NULL
-end_time        TIMESTAMPTZ     NOT NULL
-metadata        JSONB           DEFAULT '{}'::jsonb NOT NULL
-result          JSONB           DEFAULT '{}'::jsonb NOT NULL
-create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
-```
-
-Notes:
-- 365-day retention policy; older records archived to cold storage.
-
-#### player_match
-
-Source: [TDD-15](../TDD/15_match_state_persistence.md)
-
-```
-user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE
-match_id        UUID            NOT NULL REFERENCES match_history(match_id) ON DELETE CASCADE
-stats           JSONB           DEFAULT '{}'::jsonb NOT NULL
-outcome         VARCHAR(16)     NOT NULL                            -- win, loss, draw
-score           BIGINT          DEFAULT 0 NOT NULL
-PRIMARY KEY (user_id, match_id)
-```
-
----
 
 ### Economy
 
@@ -514,6 +359,66 @@ Notes:
 
 ---
 
+### Console Admin
+
+#### console_user
+
+Source: [TDD-22](../TDD/22_console_admin.md)
+
+```
+id              UUID            PRIMARY KEY DEFAULT gen_random_uuid()
+username        VARCHAR(128)    UNIQUE NOT NULL
+email           VARCHAR(255)    UNIQUE NOT NULL
+password        BYTEA
+role            SMALLINT        DEFAULT 1 NOT NULL                  -- 1=admin, 2=developer, 3=maintainer, 4=readonly
+create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+update_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+```
+
+#### console_audit_log
+
+Source: [TDD-22](../TDD/22_console_admin.md)
+
+```
+id              UUID            PRIMARY KEY DEFAULT gen_random_uuid()
+user_id         UUID            NOT NULL REFERENCES console_user(id) ON DELETE CASCADE
+action          VARCHAR(128)    NOT NULL
+resource        VARCHAR(128)    NOT NULL
+payload         JSONB           DEFAULT '{}'::jsonb NOT NULL
+create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+```
+
+#### console_acl_template
+
+Source: [TDD-22](../TDD/22_console_admin.md)
+
+```
+role            SMALLINT        PRIMARY KEY
+permissions     JSONB           DEFAULT '{}'::jsonb NOT NULL
+```
+
+#### setting
+
+Source: [TDD-22](../TDD/22_console_admin.md)
+
+```
+key             VARCHAR(128)    PRIMARY KEY
+value           TEXT            NOT NULL
+```
+
+#### users_notes
+
+Source: [TDD-22](../TDD/22_console_admin.md)
+
+```
+user_id         UUID            PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
+note            TEXT            NOT NULL
+create_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+update_time     TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP NOT NULL
+```
+
+---
+
 ## Index Strategy
 
 ### Identity & Access
@@ -566,59 +471,9 @@ UNIQUE INDEX ON users(custom_id) WHERE custom_id IS NOT NULL
 
 Purpose: Custom identity provider lookup.
 
-#### IDX_user_sessions_expiry
 
-```
-INDEX ON user_sessions(expires_at) WHERE revoked = FALSE
-```
 
-Purpose: Session expiration cleanup daemon queries. Filters out already-revoked sessions.
 
-#### IDX_user_sessions_user_id
-
-```
-INDEX ON user_sessions(user_id)
-```
-
-Purpose: FK cascade optimization and user session lookup.
-
----
-
-### Multiplayer & Matchmaking
-
-#### IDX_matchmaking_ticket_lookup
-
-```
-INDEX ON matchmaking_ticket(queue_name, status, created_at) WHERE status = 'queued'
-```
-
-Purpose: Matchmaker tick loop polling — fetches all active queued tickets within a queue, ordered by creation time. Partial index filters out non-queued tickets.
-
-#### IDX_matchmaking_ticket_properties
-
-```
-GIN INDEX ON matchmaking_ticket USING gin(properties jsonb_path_ops)
-```
-
-Purpose: Custom property JSON matching during matchmaking evaluation. Optimized with jsonb_path_ops to reduce index size.
-
-#### IDX_matchmaking_ticket_user_id
-
-```
-INDEX ON matchmaking_ticket(user_id)
-```
-
-Purpose: FK cascade optimization and per-user ticket lookup.
-
-#### IDX_match_metadata_active_label
-
-```
-INDEX ON match_metadata(ended_at, authoritative) WHERE ended_at IS NULL
-```
-
-Purpose: Listing active matches with specific labels. Partial index filters out completed matches.
-
----
 
 ### Competitive
 
@@ -646,15 +501,7 @@ INDEX ON leaderboard_record(owner_id)
 
 Purpose: FK cascade optimization and user lookup across leaderboards.
 
-#### IDX_tournament_schedule
 
-```
-INDEX ON tournament(start_time, end_time)
-```
-
-Purpose: Scheduler engine queries for active and pending tournaments.
-
----
 
 ### Social
 
@@ -786,15 +633,7 @@ GIN INDEX ON storage USING gin(value jsonb_path_ops)
 
 Purpose: Containment querying inside arbitrary JSONB user storage data. Optimized with jsonb_path_ops to reduce index size.
 
-#### IDX_player_match_match_id
 
-```
-INDEX ON player_match(match_id)
-```
-
-Purpose: FK cascade optimization for match deletion.
-
----
 
 ### Economy
 
@@ -833,3 +672,24 @@ INDEX ON subscription(user_id)
 ```
 
 Purpose: FK cascade optimization and user subscription lookup.
+
+---
+
+### Console Admin
+
+#### IDX_console_audit_log_user
+
+```
+INDEX ON console_audit_log(user_id, create_time DESC)
+```
+
+Purpose: Listing audit logs for a specific console user.
+
+#### IDX_users_notes_user_id
+
+```
+INDEX ON users_notes(user_id)
+```
+
+Purpose: Quick lookup of notes associated with a player.
+

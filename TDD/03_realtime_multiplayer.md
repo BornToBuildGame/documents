@@ -30,14 +30,14 @@ sequenceDiagram
     actor Client A
     actor Client B
     participant Server as Server Core
-    participant Registry as Match Registry
+    participant Registry as Distributed Redis Mesh
 
     Client A->>Server: HTTP WebSocket Handshake /v2/stream
     Server->>Server: Authenticate JWT Token
     Server-->>Client A: WebSocket established
     
     Client A->>Server: (WS) match_join {match_id}
-    Server->>Registry: Lookup match & register Client A Presence
+    Server->>Registry: Lookup match node & register Client A Presence
     Registry-->>Server: Presence updated
     Server-->>Client B: (WS) match_presence_event {joins: [Client A]}
     Server-->>Client A: (WS) Return list of current presences
@@ -49,33 +49,13 @@ sequenceDiagram
 
 ---
 
-## 3. Database Schema & Data Models
+## 3. Distributed In-Memory State (Redis)
 
-Active matches are registered in memory, while match registration indices are persisted to the database to support active match lists and queries.
+Active match listings and registration metadata are held entirely in distributed cache (Redis) to support fast multi-node queries and avoid PostgreSQL write contention.
 
-### Raw DDL Schemas
-
-```sql
-CREATE TABLE IF NOT EXISTS match_metadata (
-    match_id           UUID PRIMARY KEY,
-    label              VARCHAR(512) DEFAULT '{}'::varchar NOT NULL,
-    player_count       INT DEFAULT 0 NOT NULL,
-    max_size           INT DEFAULT 16 NOT NULL,
-    authoritative      BOOLEAN DEFAULT FALSE NOT NULL,
-    node               VARCHAR(64) NOT NULL,
-    created_at         TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    ended_at           TIMESTAMPTZ
-);
-```
-
-### Table Indexes
-
-```sql
--- Index for quick listing of active matches with specific labels
-CREATE INDEX IF NOT EXISTS idx_match_metadata_active_label 
-ON match_metadata (ended_at, authoritative) 
-WHERE ended_at IS NULL;
-```
+### Match Metadata (Redis Hash)
+- **Key:** `match:metadata:{match_id}`
+- **Fields:** `label`, `player_count`, `max_size`, `authoritative`, `node` (the specific Server Node hosting the match tick loop).
 
 ### In-Memory Structures
 ```typescript

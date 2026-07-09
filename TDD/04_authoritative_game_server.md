@@ -48,7 +48,7 @@ sequenceDiagram
     end
 
     Server->>VM: match_terminate(grace_seconds)
-    VM->>DB: Save final match results (rewards/stats)
+    VM->>DB: Save final match results (wallet_ledger/storage)
     DB-->>VM: Confirmation
     Server->>Server: Close Goroutine & Clean memory
 ```
@@ -57,7 +57,9 @@ sequenceDiagram
 
 ## 3. Database Schema & Data Models
 
-Authoritative matches are ephemeral, stateful processing objects stored in-memory. They do not write persistent state to database tables during active gameplay. At termination, results are logged into `match_metadata` (see [TDD-03](./03_realtime_multiplayer.md)) and `match_snapshot` tables (see [TDD-15](./15_match_state_persistence.md)).
+Authoritative matches are ephemeral, stateful processing objects stored in-memory. They do not write persistent state to database tables during active gameplay. At termination, results are logged into custom `storage` collections or `wallet_ledger` entries (see [TDD-12](./12_storage_engine.md) and [TDD-13](./13_economy_system.md)).
+
+Active match metadata is stored dynamically in the Redis Match Registry (see [TDD-03](./03_realtime_multiplayer.md)).
 
 ### In-Memory Virtual Machine Isolation
 To ensure robustness and isolation, each match runs in its own sandboxed context:

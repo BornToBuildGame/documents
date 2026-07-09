@@ -53,6 +53,17 @@ sequenceDiagram
 
 ---
 
+### Multi-Node Scaling Architecture
+
+The game server is designed to scale horizontally across multiple instances to support high concurrency and fault tolerance.
+
+- **Stateless Application Nodes:** Game servers run statelessly behind a Load Balancer. Client sessions are validated via JWTs without requiring database lookups.
+- **In-Memory Distributed State:** Transient features, such as Matchmaker queues and Realtime Presence, are managed via a distributed in-memory mesh (e.g., Redis cluster) rather than PostgreSQL.
+- **Inter-Node Communication:** WebSocket connections terminating on one node can route actions to Authoritative Matches hosted on other nodes via an internal pub/sub or gRPC mesh.
+- **Horizontally Scalable Storage:** PostgreSQL handles persistent state (wallets, leaderboards, storage). Read replicas absorb read-heavy traffic. CockroachDB is natively supported for true active-active multi-region scalability.
+
+---
+
 ## 3. Database Schema & Data Models
 
 ### Raw DDL Schemas

@@ -15,26 +15,16 @@ Table definitions and indexes live in [`database-design.md`](./database-design.m
 ```
 users
 ↓ 1:N
-user_sessions
+user_device
+```
+
+```
+user_tombstone (standalone — soft delete record)
 ```
 
 ---
 
-### Multiplayer & Matchmaking (TDD-02, TDD-03)
 
-```
-users
-↓ 1:N
-matchmaking_ticket
-↓ N:1 (via players JSONB)
-matchmaker_match
-```
-
-```
-match_metadata (standalone — references server node)
-```
-
----
 
 ### Competitive (TDD-05, TDD-06)
 
@@ -46,11 +36,7 @@ leaderboard_record
 users
 ```
 
-```
-tournament (standalone — reuses leaderboard_record for scoring)
-```
 
----
 
 ### Social — Friends (TDD-07)
 
@@ -116,21 +102,7 @@ storage
 
 ---
 
-### Data — Match State & History (TDD-15)
 
-```
-match_state (standalone — references match_id, players as UUID[])
-```
-
-```
-match_history
-↓ 1:N
-player_match
-↑ N:1
-users
-```
-
----
 
 ### Economy (TDD-13)
 
@@ -157,6 +129,30 @@ purchase
 users
 ↓ 1:N
 subscription
+```
+
+---
+
+### Console Admin (TDD-22)
+
+```
+console_user
+↓ 1:N
+console_audit_log
+```
+
+```
+console_acl_template (standalone)
+```
+
+```
+setting (standalone)
+```
+
+```
+users
+↓ 1:1
+users_notes
 ```
 
 ---

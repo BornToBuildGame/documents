@@ -29,9 +29,8 @@ sequenceDiagram
     autonumber
     actor Client A
     actor Client B
-    participant Server as Server Core
-    participant Cache as Redis Match Queue
-    participant DB as PostgreSQL DB
+    participant Server as Server Core Node
+    participant Cache as Distributed Redis Mesh
 
     Client A->>Server: (WebSocket) Submit ticket to 'ranked_pvp'
     Server->>Cache: Add Client A ticket with properties
@@ -39,85 +38,38 @@ sequenceDiagram
     Server->>Cache: Add Client B ticket with properties
 
     loop Matchmaker Loop Tick (e.g. every 1 second)
-        Server->>Cache: Fetch all active tickets for 'ranked_pvp'
+        Server->>Cache: Fetch active tickets for 'ranked_pvp' across all nodes
         Server->>Server: Run pairing algorithm (expand skill window per wait time)
         Note over Server: Match Found between Client A and Client B!
     end
 
-    Server->>DB: Insert match results in matchmaker_match
-    DB-->>Server: Confirmation
     Server->>Cache: Delete processed tickets from cache
+    Server->>Cache: Register matched pair and assign to an Authoritative Node
     Server-->>Client A: (WebSocket) Emit 'matchmaker_matched' with match ID & token
     Server-->>Client B: (WebSocket) Emit 'matchmaker_matched' with match ID & token
 ```
 
 ---
 
-## 3. Database Schema & Data Models
+## 3. Distributed In-Memory State (Redis)
 
-### Raw DDL Schemas
+Because matchmaking tickets and active matches are ephemeral and highly volatile, they are no longer stored in PostgreSQL to avoid MVCC bloat and write contention.
 
-```sql
--- Matchmaking Ticket Table
-CREATE TYPE ticket_status AS ENUM ('queued', 'matched', 'cancelled', 'expired');
+### Matchmaking Tickets (Redis Sorted Set & Hash)
+- **Ticket Index (Sorted Set):** `matchmaker:queue:{queue_name}` (Score: `created_at` epoch).
+- **Ticket Payload (Hash):** `matchmaker:ticket:{ticket_id}` containing `user_id`, `skill_rating`, `region`, `properties`, and `party_members`.
 
-CREATE TABLE IF NOT EXISTS matchmaking_ticket (
-    ticket_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    queue_name        VARCHAR(64) NOT NULL,
-    skill_rating      DOUBLE PRECISION DEFAULT 1000.0 NOT NULL,
-    region            VARCHAR(32) NOT NULL,
-    properties        JSONB DEFAULT '{}'::jsonb NOT NULL,
-    party_members     UUID[] DEFAULT '{}'::uuid[] NOT NULL,
-    min_count         INT NOT NULL,
-    max_count         INT NOT NULL,
-    count_multiple    INT,
-    reverse_precision BOOLEAN DEFAULT FALSE NOT NULL,
-    status            ticket_status DEFAULT 'queued' NOT NULL,
-    created_at        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    expires_at        TIMESTAMPTZ NOT NULL,
-    matched_at        TIMESTAMPTZ
-);
-
--- Matchmaker Match Result Table
-CREATE TYPE match_status AS ENUM ('pending', 'active', 'completed', 'cancelled');
-
-CREATE TABLE IF NOT EXISTS matchmaker_match (
-    match_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    queue_name        VARCHAR(64) NOT NULL,
-    players           JSONB NOT NULL, -- Array of objects: [{"user_id": "...", "username": "..."}]
-    match_token       VARCHAR(256) NOT NULL,
-    properties        JSONB DEFAULT '{}'::jsonb NOT NULL,
-    region            VARCHAR(32) NOT NULL,
-    created_at        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    status            match_status DEFAULT 'pending' NOT NULL
-);
-```
-
-### Table Indexes
-
-```sql
--- Index for quick polling of active matchmaking tickets within a queue
-CREATE INDEX IF NOT EXISTS idx_matchmaking_ticket_lookup 
-ON matchmaking_ticket (queue_name, status, created_at)
-WHERE status = 'queued';
-
--- GIN index for querying tickets based on custom property JSON matching
-CREATE INDEX IF NOT EXISTS idx_matchmaking_ticket_properties 
-ON matchmaking_ticket USING gin (properties);
-
--- Index to optimize matchmaking ticket user lookup and cascade deletes
-CREATE INDEX IF NOT EXISTS idx_matchmaking_ticket_user_id ON matchmaking_ticket(user_id);
-```
+### Active Matches (Redis Hash)
+- **Match Registry:** `matchmaker:match:{match_id}` containing `players`, `match_token`, `region`, and the `node_id` assigned to host the match.
 
 ---
 
 ## 4. Algorithmic Logic & Execution Flow
 
 ### Matchmaking Matching & Window Expansion Algorithm
-1. The matchmaking engine ticks every `1000ms`.
+1. The matchmaking engine ticks every `1000ms`. In a multi-node cluster, a distributed lock (e.g., Redlock) ensures only one node evaluates a specific queue per tick to avoid race conditions.
 2. For each queue (e.g., `ranked_pvp`):
-   - Query all tickets where `status = 'queued'`.
+   - Query all active tickets from the Redis Sorted Set `matchmaker:queue:{queue_name}`.
    - Sort tickets by `created_at` in ascending order (longest waiting first).
    - For each ticket $T$:
      - Calculate elapsed wait time: $W = \text{now} - T.\text{created\_at}$.

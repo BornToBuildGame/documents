@@ -110,7 +110,7 @@ Custom RPC functions, matchmaking filters, and game loop updates execute in memo
 
 Core tables are indexed and related to optimize reads and prevent write amplification:
 - **`users`**: Base identity data with JSONB for wallets.
-- **`user_sessions`**: Session tokens with B-tree index on `user_id` to optimize cascades.
+- **`user_device`**: Device-linked data for hardware tracking and bans.
 - **`user_edge`**: Directed social adjacency list (`source_id`, `destination_id`, `state`) representing friendships, blocks, and invites.
 - **`leaderboard_record`**: Composite B-Tree index `(leaderboard_id, score, subscore, update_time) INCLUDE (expiry_time)` to support Index-Only Scans.
 - **`storage`**: Key-value data with GIN index on `value` JSONB for deep attribute queries.

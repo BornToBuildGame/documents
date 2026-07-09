@@ -136,7 +136,7 @@ func SendFriendRequestNotification(ctx context.Context, nk interface{}, targetUs
 		Persistent: true,
 	}
 
-	// In the Nakama Go runtime:
+	// In the Ultimate Game Engine Go runtime:
 	// return nk.NotificationsSend(ctx, []*runtime.NotificationSend{...})
 	_ = notification // simulated dispatch representation
 	return nil

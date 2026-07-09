@@ -140,7 +140,7 @@ func BeforeAuthenticateEmail(ctx context.Context, logger interface{}, db *sql.DB
   - Set instruction count limit: **10,000,000 instructions** per execution to prevent infinite loops.
 - **Hook Error Isolation**: If a before hook throws an error, the error must be caught and returned as a gRPC/HTTP error to the client. It must **not** crash the server or corrupt shared state.
 - **Module Hot-Reload Security**: If runtime module hot-reloading is supported, require admin authentication and audit logging for all reload operations.
-- **Context Isolation**: Ensure each hook/RPC execution receives an isolated context. Shared mutable state between concurrent executions is forbidden — use the Nakama storage engine or database for shared data.
+- **Context Isolation**: Ensure each hook/RPC execution receives an isolated context. Shared mutable state between concurrent executions is forbidden — use the Ultimate Game Engine storage engine or database for shared data.
 
 ---
 

@@ -38,6 +38,7 @@ This directory contains the Product Requirements Documents (PRD) for the **Ultim
 | 19 | API Layer (REST, gRPC, WebSocket) | Infrastructure | [PRD-19](./19_api_layer.md) | [BRD-19](../BRD/19_api_layer.md) | [TDD-19](../TDD/19_api_layer.md) |
 | 20 | Database & Infrastructure | Infrastructure | [PRD-20](./20_database_infrastructure.md) | [BRD-20](../BRD/20_database_infrastructure.md) | [TDD-20](../TDD/20_database_infrastructure.md) |
 | 21 | In-App Purchase Validation | Monetization | [PRD-21](./21_iap_validation.md) | [BRD-21](../BRD/21_iap_validation.md) | [TDD-21](../TDD/21_iap_validation.md) |
+| 22 | Console Admin | Developer Tools | [PRD-22](./22_console_admin.md) | [BRD-22](../BRD/22_console_admin.md) | [TDD-22](../TDD/22_console_admin.md) |
 
 ---
 

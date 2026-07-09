@@ -55,38 +55,10 @@ sequenceDiagram
 
 ## 3. Database Schema & Data Models
 
-### Raw DDL Schemas
+Tournaments do not use a standalone table. Instead, they are implemented as an extension of the `leaderboard` table (see [TDD-05](./05_leaderboards.md)), leveraging scheduling fields like `duration`, `start_time`, `end_time`, `join_required`, and `max_size`.
 
-```sql
-CREATE TABLE IF NOT EXISTS tournament (
-    id                VARCHAR(128) PRIMARY KEY,
-    title             VARCHAR(256) NOT NULL,
-    description       TEXT,
-    category          INT DEFAULT 0 NOT NULL,
-    sort_order        INT DEFAULT 1 NOT NULL, -- 0=ascending, 1=descending
-    operator          INT DEFAULT 0 NOT NULL, -- 0=best, 1=set, 2=increment
-    duration          INT NOT NULL, -- Occurrence duration in seconds
-    reset_schedule    VARCHAR(64), -- Cron expression
-    start_time        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    end_time          TIMESTAMPTZ, -- Total tournament systems end
-    max_size          INT DEFAULT 0 NOT NULL, -- Max players per sub-leaderboard (0 = infinite)
-    max_num_score     INT DEFAULT 0 NOT NULL, -- Max score submissions allowed per player
-    metadata          JSONB DEFAULT '{}'::jsonb NOT NULL,
-    authoritative     BOOLEAN DEFAULT FALSE NOT NULL,
-    start_active      TIMESTAMPTZ, -- Start of current active occurrence
-    create_time       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
--- Backed by the leaderboard_record table for scoring (refer to TDD-05)
-```
-
-### Table Indexes
-
-```sql
--- Index for quick scheduler check of active and pending tournaments (start_time and end_time)
-CREATE INDEX IF NOT EXISTS idx_tournament_schedule
-ON tournament (start_time, end_time);
-```
+### Backing Records
+Player scores are stored in `leaderboard_record` (see [TDD-05](./05_leaderboards.md)), scoped by the occurrence's `expiry_time`.
 
 ---
 

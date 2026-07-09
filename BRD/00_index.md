@@ -4,13 +4,13 @@
 > **Version:** 1.2  
 > **Last Updated:** 2026-07-01  
 > **Status:** Draft  
-> **Reference Architecture:** [Nakama](https://heroiclabs.com/nakama/) — The leading open-source game backend by Heroic Labs
+> **Reference Architecture:** [Ultimate Game Engine](https://heroiclabs.com/nakama/) — The leading open-source game backend by Heroic Labs
 
 ---
 
 ## Overview
 
-This directory contains the Business Requirements Documents (BRD) for the **Ultimate Game Engine Multiplayer Game Server**. The server follows [Nakama](https://heroiclabs.com/nakama/), the leading open-source game backend framework for building online multiplayer games. It provides a complete backend infrastructure enabling developers to focus on gameplay rather than backend engineering.
+This directory contains the Business Requirements Documents (BRD) for the **Ultimate Game Engine Multiplayer Game Server**. The server follows [Ultimate Game Engine](https://heroiclabs.com/nakama/), the leading open-source game backend framework for building online multiplayer games. It provides a complete backend infrastructure enabling developers to focus on gameplay rather than backend engineering.
 
 The server is designed for use with the following game engines and frameworks:
 
@@ -88,6 +88,7 @@ This master index maps all modules to their corresponding requirements and speci
 | 19 | API Layer (REST, gRPC, WebSocket) | Infrastructure | [BRD-19](./19_api_layer.md) | [PRD-19](../PRD/19_api_layer.md) | [TDD-19](../TDD/19_api_layer.md) |
 | 20 | Database & Infrastructure | Infrastructure | [BRD-20](./20_database_infrastructure.md) | [PRD-20](../PRD/20_database_infrastructure.md) | [TDD-20](../TDD/20_database_infrastructure.md) |
 | 21 | In-App Purchase Validation | Monetization | [BRD-21](./21_iap_validation.md) | [PRD-21](../PRD/21_iap_validation.md) | [TDD-21](../TDD/21_iap_validation.md) |
+| 22 | Console Admin | Developer Tools | [BRD-22](./22_console_admin.md) | [PRD-22](../PRD/22_console_admin.md) | [TDD-22](../TDD/22_console_admin.md) |
 
 ---
 
@@ -138,11 +139,11 @@ This master index maps all modules to their corresponding requirements and speci
 
 ---
 
-## Nakama Feature Parity
+## Ultimate Game Engine Feature Parity
 
-This server follows Nakama's feature set. The following Nakama concepts are mapped to our BRDs:
+This server follows Ultimate Game Engine's feature set. The following Ultimate Game Engine concepts are mapped to our BRDs:
 
-| Nakama Concept | BRD |
+| Ultimate Game Engine Concept | BRD |
 |---------------|-----|
 | Authentication | BRD-01 |
 | Sessions / User Accounts | BRD-01 |
@@ -176,7 +177,7 @@ This server follows Nakama's feature set. The following Nakama concepts are mapp
 - Each **BRD** focuses strictly on high-level business motivation, MoSCoW prioritization, functional scope, and acceptance criteria.
 - API endpoints and serialization protocol payloads are isolated in **PRDs**.
 - PostgreSQL table definitions, query indexes, and code blocks are isolated in **TDDs**.
-- Feature naming follows Nakama conventions where applicable for developer familiarity.
+- Feature naming follows Ultimate Game Engine conventions where applicable for developer familiarity.
 
 ---
 
@@ -185,5 +186,5 @@ This server follows Nakama's feature set. The following Nakama concepts are mapp
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-07-01 | Engineering | Initial BRD creation for all 20 feature areas |
-| 1.1 | 2026-07-01 | Engineering | Added Nakama reference; added BRD-21 (IAP Validation) |
+| 1.1 | 2026-07-01 | Engineering | Added Ultimate Game Engine reference; added BRD-21 (IAP Validation) |
 | 1.2 | 2026-07-01 | Engineering | Cleaned BRDs of technical specs; split API specs into PRDs and DB schemas into TDDs |

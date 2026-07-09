@@ -104,7 +104,7 @@ import (
 )
 
 func JoinCustomStream(ctx context.Context, nk interface{}, stream Stream, userID string, sessionID string) error {
-	// Join the specified real-time stream via the Nakama framework
+	// Join the specified real-time stream via the Ultimate Game Engine framework
 	// success, err := nk.StreamUserJoin(stream.Mode, stream.Subject, stream.Subcontext, stream.Label, userID, sessionID, false, false, "")
 	success := true
 	if !success {

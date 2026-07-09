@@ -38,6 +38,7 @@ This directory contains the Technical Design Documents (TDD) for the **Ultimate 
 | 19 | API Layer (REST, gRPC, WebSocket) | Infrastructure | [TDD-19](./19_api_layer.md) | [BRD-19](../BRD/19_api_layer.md) | [PRD-19](../PRD/19_api_layer.md) |
 | 20 | Database & Infrastructure | Infrastructure | [TDD-20](./20_database_infrastructure.md) | [BRD-20](../BRD/20_database_infrastructure.md) | [PRD-20](../PRD/20_database_infrastructure.md) |
 | 21 | In-App Purchase Validation | Monetization | [TDD-21](./21_iap_validation.md) | [BRD-21](../BRD/21_iap_validation.md) | [PRD-21](../PRD/21_iap_validation.md) |
+| 22 | Console Admin | Developer Tools | [TDD-22](./22_console_admin.md) | [BRD-22](../BRD/22_console_admin.md) | [PRD-22](../PRD/22_console_admin.md) |
 
 ---
 

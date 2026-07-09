@@ -112,7 +112,7 @@ message RpcResponse {
 
 ```typescript
 // Define handler logic
-function claimDailyReward(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+function claimDailyReward(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.UltimateGameEngine, payload: string): string {
   // logic...
   return JSON.stringify({ success: true });
 }

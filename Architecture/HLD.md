@@ -11,7 +11,7 @@
 
 ## 1. System Topology & Infrastructure
 
-The game server is a distributed, horizontally scalable system designed to run as a multi-node cluster behind a high-performance Layer 7 load balancer (e.g., Envoy, HAProxy, or AWS ALB).
+The game server is a distributed, horizontally scalable system designed to run as a multi-node cluster of stateless application nodes behind a high-performance Layer 7 load balancer (e.g., Envoy, HAProxy, or AWS ALB).
 
 ```mermaid
 flowchart RL
