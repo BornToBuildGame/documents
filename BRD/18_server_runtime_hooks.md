@@ -46,7 +46,7 @@ Define the requirements for the server runtime environment that enables develope
 |----------|----------------|------------|----------|
 | **Lua** | Embedded VM (LuaJIT) | Yes | Rapid prototyping, lightweight logic |
 | **TypeScript** | Compiled to JS, embedded runtime | Yes | Full-featured game logic |
-| **Go** | Compiled plugin or built-in | No (restart) | High-performance, production |
+| **Go** | Compiled `.so` plugin via `plugin.Open()` | No (restart) | High-performance, production. Native execution — no VM sandbox. Direct `*sql.DB` database access and full Go ecosystem. |
 
 - All languages shall have access to the same server API surface.
 - Language-specific modules are loaded at startup.
@@ -179,7 +179,9 @@ Define the requirements for the server runtime environment that enables develope
 | **Scalability** | Runtime scales with server instances |
 | **Monitoring** | Hook execution time, error rates, scheduled job status |
 ---
-## 6. Example: Initialization (TypeScript)
+## 6. Examples: Initialization
+
+### TypeScript Initialization
 
 ```typescript
 function InitModule(
@@ -212,6 +214,68 @@ function InitModule(
   logger.info("Server runtime initialized.");
 }
 ```
+
+### Go Initialization
+
+Go modules are compiled as `.so` shared object plugins and loaded by the server at startup. The `InitModule` function is the required entry point.
+
+```go
+package main
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"strings"
+
+	"github.com/heroiclabs/nakama-common/runtime"
+)
+
+// InitModule is the entry point for all Go runtime modules.
+// It receives direct database access (db), the runtime API (nk), and the
+// initializer for registering RPCs, hooks, match handlers, and events.
+func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, initializer runtime.Initializer) error {
+	// Register RPC functions
+	if err := initializer.RegisterRpc("ClaimDailyReward", claimDailyReward); err != nil {
+		return err
+	}
+
+	// Register before hook — intercept email auth to enforce domain restrictions
+	if err := initializer.RegisterBeforeAuthenticateEmail(beforeAuthenticateEmail); err != nil {
+		return err
+	}
+
+	// Register after hook — log storage writes for analytics
+	if err := initializer.RegisterAfterWriteStorageObjects(afterStorageWrite); err != nil {
+		return err
+	}
+
+	// Register match handler
+	if err := initializer.RegisterMatch("battle_royale", newBattleRoyaleMatch); err != nil {
+		return err
+	}
+
+	// Register event handler
+	if err := initializer.RegisterEvent(func(ctx context.Context, logger runtime.Logger, evt *runtime.Event) {
+		logger.Info("Event received: %s", evt.Name)
+	}); err != nil {
+		return err
+	}
+
+	logger.Info("Go runtime module initialized successfully")
+	return nil
+}
+
+// Before hook — reject non-corporate email domains
+func beforeAuthenticateEmail(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, in *runtime.AuthenticateEmailRequest) (*runtime.AuthenticateEmailRequest, error) {
+	if !strings.HasSuffix(in.Account.Email, "@example.com") {
+		return nil, errors.New("UNAUTHORIZED_EMAIL_DOMAIN")
+	}
+	return in, nil
+}
+```
+
+> **Note:** Go modules run natively without VM sandboxing. They have full access to the Go ecosystem, filesystem, and third-party libraries. The server wraps all Go runtime invocations with `recover()` to prevent panics from crashing the server process.
 ---
 ## 7. Dependencies
 
@@ -260,6 +324,7 @@ function InitModule(
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-07-01 | Engineering | Initial BRD |
+| 1.1 | 2026-07-09 | Engineering | Added Go native runtime InitModule example, updated language table with Go execution model details |
 
 ---
 

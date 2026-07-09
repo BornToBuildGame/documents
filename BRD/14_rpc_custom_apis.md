@@ -47,6 +47,8 @@ Define the requirements for a Remote Procedure Call (RPC) system that allows dev
 - Function names must be unique.
 - Registration happens at server startup (init phase).
 - Languages: Lua, TypeScript, Go.
+- Go modules are compiled natively as `.so` plugins and loaded via `plugin.Open()`. They run without VM sandboxing and have direct `*sql.DB` database access.
+- Lua and TypeScript handlers execute within isolated VM sandboxes.
 
 ### FR-RPC-002: RPC Function Signature
 - **Priority:** Must
@@ -57,6 +59,10 @@ Define the requirements for a Remote Procedure Call (RPC) system that allows dev
 - `context`: contains caller info (user_id, username, session vars, client IP, etc.)
 - `payload`: string (typically JSON-encoded)
 - Returns: string response (typically JSON-encoded) or error
+- Go RPC handlers receive an extended signature with direct access to the logger, database, and runtime module:
+  ```go
+  func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, payload string) (string, error)
+  ```
 - For unauthenticated RPCs, context user fields are empty.
 
 ### FR-RPC-003: Client-to-Server RPC
@@ -211,6 +217,56 @@ const buyItem: nkruntime.RpcFunction = function(ctx, logger, nk, payload) {
 
 initializer.registerRpc("BuyItem", buyItem);
 ```
+
+### ClaimDailyReward (Go)
+```go
+package main
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+
+	"github.com/heroiclabs/nakama-common/runtime"
+)
+
+func ClaimDailyReward(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok {
+		return "", runtime.NewError("missing user id", 3) // INVALID_ARGUMENT
+	}
+
+	// Read last claim time from storage
+	reads := []*runtime.StorageRead{{
+		Collection: "rewards",
+		Key:        "daily",
+		UserID:     userID,
+	}}
+	records, err := nk.StorageRead(ctx, reads)
+	if err != nil {
+		return "", runtime.NewError("storage read failed", 13) // INTERNAL
+	}
+
+	// Grant reward via wallet update
+	changeset := map[string]int64{"coins": 100, "gems": 5}
+	metadata := map[string]interface{}{"reason": "daily_reward"}
+	if err := nk.WalletUpdate(ctx, userID, changeset, metadata, true); err != nil {
+		return "", runtime.NewError("wallet update failed", 13)
+	}
+
+	response, _ := json.Marshal(map[string]interface{}{"reward": changeset})
+	return string(response), nil
+}
+
+// InitModule registers all Go RPCs at server startup.
+func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, initializer runtime.Initializer) error {
+	if err := initializer.RegisterRpc("ClaimDailyReward", ClaimDailyReward); err != nil {
+		return err
+	}
+	logger.Info("Go module loaded successfully")
+	return nil
+}
+```
 ---
 ## 7. Dependencies
 
@@ -258,6 +314,7 @@ initializer.registerRpc("BuyItem", buyItem);
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-07-01 | Engineering | Initial BRD |
+| 1.1 | 2026-07-09 | Engineering | Added Go native runtime RPC example, clarified Go execution model (non-sandboxed, direct DB access) |
 
 ---
 

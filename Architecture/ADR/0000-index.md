@@ -13,6 +13,7 @@ This directory contains records of the major architectural and design decisions 
 | [ADR-0003](./0003-in-memory-ephemeral-party-and-presence.md) | In-Memory Ephemeral Party and Presence Storage | Accepted | 2026-07-02 |
 | [ADR-0004](./0004-optimistic-concurrency-control-for-storage.md) | Optimistic Concurrency Control (OCC) for Storage writes | Accepted | 2026-07-02 |
 | [ADR-0005](./0005-stateless-distributed-architecture.md) | Stateless Distributed Architecture | Accepted | 2026-07-02 |
+| [ADR-0006](./0006-go-native-runtime-architecture.md) | Go Native Runtime Architecture | Accepted | 2026-07-09 |
 
 ---
 

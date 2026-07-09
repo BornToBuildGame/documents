@@ -57,22 +57,59 @@ interface Initializer {
 }
 ```
 
+### Go Initializer Interface
+
+Go modules implement `InitModule` and receive an `Initializer` that provides registration methods. All methods return `error` (unlike TypeScript which returns `void`).
+
+```go
+// Initializer provides registration methods available during InitModule execution.
+type Initializer interface {
+	// Core registrations
+	RegisterRpc(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, payload string) (string, error)) error
+	RegisterMatch(name string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module) (Match, error)) error
+
+	// Before hooks — intercept and modify/reject client requests
+	RegisterBeforeAuthenticateEmail(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, in *AuthenticateEmailRequest) (*AuthenticateEmailRequest, error)) error
+	RegisterBeforeWriteStorageObjects(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, in *WriteStorageObjectsRequest) (*WriteStorageObjectsRequest, error)) error
+	RegisterBeforeAddFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, in *AddFriendsRequest) (*AddFriendsRequest, error)) error
+	RegisterBeforeJoinGroup(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, in *JoinGroupRequest) (*JoinGroupRequest, error)) error
+
+	// After hooks — trigger side effects post-processing
+	RegisterAfterAuthenticateEmail(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, out *Session, in *AuthenticateEmailRequest) error) error
+	RegisterAfterWriteStorageObjects(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, out *StorageObjectAcks, in *WriteStorageObjectsRequest) error) error
+	RegisterAfterAddFriends(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, in *AddFriendsRequest) error) error
+	RegisterAfterJoinGroup(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, in *JoinGroupRequest) error) error
+
+	// Event hooks — asynchronous system events
+	RegisterEvent(fn func(ctx context.Context, logger Logger, evt *Event)) error
+	RegisterEventSessionStart(fn func(ctx context.Context, logger Logger, evt *Event)) error
+	RegisterEventSessionEnd(fn func(ctx context.Context, logger Logger, evt *Event)) error
+	RegisterMatchmakerMatched(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, entries []MatchmakerEntry) (string, error)) error
+	RegisterLeaderboardReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, leaderboard *Leaderboard, reset int64) error) error
+	RegisterTournamentEnd(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, tournament *Tournament, end int64, reset int64) error) error
+	RegisterTournamentReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk Module, tournament *Tournament, end int64, reset int64) error) error
+}
+```
+
 ### Hook Handler Signatures
 
 #### 1. Before Hook Signature
-* **Signature**: `beforeHook(ctx, logger, nk, request) -> (request_payload | nil | error)`
+* **Signature (TypeScript)**: `beforeHook(ctx, logger, nk, request) -> (request_payload | nil | error)`
+* **Signature (Go)**: `func(ctx context.Context, logger Logger, db *sql.DB, nk Module, in *Request) (*Request, error)`
 * **Behavior**:
   * Return modified request payload to proceed.
   * Return `nil` to proceed with the original request payload.
   * Throw/return an error to reject the request and return the error message to the client (REST returns mapped HTTP error, gRPC returns status code).
 
 #### 2. After Hook Signature
-* **Signature**: `afterHook(ctx, logger, nk, response, request)`
+* **Signature (TypeScript)**: `afterHook(ctx, logger, nk, response, request)`
+* **Signature (Go)**: `func(ctx context.Context, logger Logger, db *sql.DB, nk Module, out *Response, in *Request) error`
 * **Behavior**:
   * Executes after the built-in action. Read-only access to response and original request. Return values are ignored.
 
 #### 3. Event Hook Signature
-* **Signature**: `eventHook(ctx, logger, nk, event)`
+* **Signature (TypeScript)**: `eventHook(ctx, logger, nk, event)`
+* **Signature (Go)**: `func(ctx context.Context, logger Logger, evt *Event)`
 * **Behavior**:
   * Executes asynchronously in the background. Does not block client response.
 
@@ -110,3 +147,12 @@ runtime:
 ## 5. Linked Documents
 - [BRD-18](../BRD/18_server_runtime_hooks.md) (Business Requirements Document)
 - [TDD-18](../TDD/18_server_runtime_hooks.md) (Technical Design Document)
+
+---
+
+## Version History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2026-07-01 | Engineering | Initial PRD |
+| 1.1 | 2026-07-09 | Engineering | Added Go Initializer interface, Go hook handler signatures with (ctx, logger, db, nk) params |

@@ -121,6 +121,35 @@ function claimDailyReward(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: 
 initializer.registerRpc("ClaimDailyReward", claimDailyReward);
 ```
 
+### Server Runtime Registration (Go Example)
+
+Go modules are compiled as `.so` plugins. All RPCs are registered in `InitModule`.
+
+```go
+package main
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/heroiclabs/nakama-common/runtime"
+)
+
+// Go RPC handler receives logger, db, and nk in addition to context and payload.
+func claimDailyReward(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, payload string) (string, error) {
+	// Direct database access via db, or use nk runtime API
+	logger.Info("ClaimDailyReward called with payload: %s", payload)
+	return `{"success": true}`, nil
+}
+
+func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, initializer runtime.Initializer) error {
+	if err := initializer.RegisterRpc("ClaimDailyReward", claimDailyReward); err != nil {
+		return err
+	}
+	return nil
+}
+```
+
 ---
 
 ## 4. Product Configurations
@@ -136,3 +165,12 @@ initializer.registerRpc("ClaimDailyReward", claimDailyReward);
 ## Linked Documents
 - [BRD-14](../BRD/14_rpc_custom_apis.md) (Business Requirements Document)
 - [TDD-14](../TDD/14_rpc_custom_apis.md) (Technical Design Document)
+
+---
+
+## Version History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2026-07-01 | Engineering | Initial PRD |
+| 1.1 | 2026-07-09 | Engineering | Added Go native runtime RPC registration example |

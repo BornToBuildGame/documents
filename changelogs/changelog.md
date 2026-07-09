@@ -1,5 +1,17 @@
 **
 2026-07-09
+Added Go native runtime support to RPC & Custom APIs and Server Runtime & Hooks (ADR-0006, TDD-14, TDD-18, BRD-14, BRD-18, PRD-14, PRD-18, hooks.go, go_runtime.go)
+Reason: Go runtime was missing from documentation and code — added .so plugin loading, InitModule entry point, full handler signatures with logger/db/nk parameters, runtime precedence (Go → Lua → JS), and Initializer interface.
+**
+
+**
+2026-07-09
+Created implementation-plan.md
+Reason: Established the master development checklist and verification plan based on architecture and TDD documents.
+**
+
+**
+2026-07-09
 Synced database design, ERD, TDDs, and PRD with reference engine migrations (19 SQL scripts).
 Reason: Resolved mismatches, missing columns/indexes, incorrect PK/FK strategies, and updated Console Admin ACL and messaging stream architectures.
 **
