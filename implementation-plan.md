@@ -20,6 +20,9 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
 | 8 | Messaging, Chat & Notifications | [TDD-10](./TDD/10_chat_system.md), [TDD-11](./TDD/11_notifications.md) | 🟩 Completed |
 | 9 | Storage Engine & Economy Ledger | [TDD-12](./TDD/12_storage_engine.md), [TDD-13](./TDD/13_economy_system.md), [TDD-21](./TDD/21_iap_validation.md) | 🟩 Completed |
 | 10 | Console Admin & Monitoring | [TDD-22](./TDD/22_console_admin.md) | 🟩 Completed |
+| 11 | Leaderboard & Tournament Engine | [TDD-05](./TDD/05_leaderboards.md), [TDD-06](./TDD/06_tournaments.md) | 🟩 Completed |
+| 12 | Ephemeral Party Gateway | [TDD-08](./TDD/08_parties.md) | 🟩 Completed |
+| 13 | Distributed Multi-Node Scaling & Interceptors | [TDD-03](./TDD/03_realtime_multiplayer.md), [TDD-04](./TDD/04_authoritative_game_server.md), [TDD-18](./TDD/18_server_runtime_hooks.md) | 🟩 Completed |
 
 ---
 
@@ -175,6 +178,41 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` **Integration Test:** Perform admin-only moderation updates (such as player ban) and assert log entries populate the `console_audit_log` table.
   - `[x]` **Integration Test:** Perform full-text player lookups via administrative API, verifying indices return expected query results.
   - `[x]` **Verify command:** `go test -v ./internal/console/...`
+
+### Phase 11: Leaderboard & Tournament Engine (TDD-05, TDD-06)
+* **Implementation Tasks:**
+  - `[x]` Create `0007_leaderboard_tournament_schema.sql` migration defining `leaderboard` and `leaderboard_record` tables, constraints, and index structures
+  - `[x]` Implement `internal/leaderboard` core package with score operator logic (best, set, increment, decrement)
+  - `[x]` Implement local thread-safe O(log N) in-memory ranking cache for fast placements lookup
+  - `[x]` Implement Redis Pub/Sub invalidation listener to clear/rebuild local rank caches lazily
+  - `[x]` Implement `internal/tournament` cron scheduler checking active occurrences every 30s
+  - `[x]` Implement `OnTournamentEnd` hook invocation triggering reward wallet mutations inside PostgreSQL database transactions
+* **Testing & Verification Tasks:**
+  - `[x]` **Unit Test:** Submit scores with different operators and verify calculated leaderboard placements.
+  - `[x]` **Integration Test:** Verify cron parser triggers active tournament states and runs tournament end reward hooks.
+  - `[x]` **Verify command:** `go test -v ./internal/leaderboard/... ./internal/tournament/...`
+
+### Phase 12: Ephemeral Party Gateway (TDD-08)
+* **Implementation Tasks:**
+  - `[x]` Implement `internal/party` core package with thread-safe `PartySession` and `PartyMember` state structures
+  - `[x]` Implement socket command message handlers (`party_create`, `party_invite`, `party_join`, `party_leave`) in `internal/socket`
+  - `[x]` Implement leader promotion logic triggering when current leader disconnects or leaves the party
+  - `[x]` Implement invitation lifecycle maps and auto-expiration ticks
+* **Testing & Verification Tasks:**
+  - `[x]` **Unit Test:** Verify party creation, invitation limits, and leader promotion sorting rules.
+  - `[x]` **Integration Test:** Simulate client connections joining, leaving, and sending messages over party WebSocket streams.
+  - `[x]` **Verify command:** `go test -v ./internal/party/...`
+
+### Phase 13: Distributed Multi-Node Scaling & Interceptors (TDD-03, TDD-04, TDD-18)
+* **Implementation Tasks:**
+  - `[x]` Implement distributed Redis-backed socket message relaying for multi-node connection architectures
+  - `[x]` Implement authoritative match labeling index registry and active search query endpoints
+  - `[x]` Implement gRPC peer-to-peer input forwarding mesh routing client commands between server nodes
+  - `[x]` Wire runtime before/after hooks registry execution interceptors into all main database and authentication API endpoints
+* **Testing & Verification Tasks:**
+  - `[x]` **Integration Test:** Run multi-node cluster tests, forwarding inputs over gRPC and verifying state is relayed across nodes.
+  - `[x]` **Integration Test:** Verify custom before/after runtime hooks execute and intercept auth/storage endpoints correctly.
+  - `[x]` **Verify command:** `go test -v ./internal/socket/... ./internal/match/...`
 
 ---
 

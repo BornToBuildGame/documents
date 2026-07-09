@@ -1,5 +1,11 @@
 **
 2026-07-09
+Updated BRD, PRD, TDD, Architecture, and Implementation Plan to align Leaderboard, Tournament, and Party features.
+Reason: Added missing specifications and implementation checklists for Leaderboards (TDD-05), Tournaments (TDD-06), and Ephemeral Parties (TDD-08) to align the framework with the reference architecture's capabilities and multi-node scaling requirements.
+**
+
+**
+2026-07-09
 Added Go native runtime support to RPC & Custom APIs and Server Runtime & Hooks (ADR-0006, TDD-14, TDD-18, BRD-14, BRD-18, PRD-14, PRD-18, hooks.go, go_runtime.go)
 Reason: Go runtime was missing from documentation and code — added .so plugin loading, InitModule entry point, full handler signatures with logger/db/nk parameters, runtime precedence (Go → Lua → JS), and Initializer interface.
 **

@@ -118,8 +118,16 @@ For the NoSQL-style user storage engine, writes enforce OCC using MD5 value hash
 ### 4.3 Atomic Wallet Mutations
 Virtual wallet ledger writes require `SELECT FOR UPDATE` pessimistic locks on the user's wallet JSONB field to guarantee that multiple concurrent mutations (e.g. parallel loot box openings) do not result in double-spends or negative balances.
 
-### 4.4 Sandboxed Logic Execution
-Custom RPC functions, matchmaking filters, and game loop updates execute in memory-isolated Lua threads or QuickJS/V8 isolates with no direct access to filesystem, OS, or inter-vm memory namespaces.
+### 4.5 Leaderboard & Tournament Ranking Caches
+Leaderboards maintain O(log N) dynamic in-memory rank representations of top players on server nodes. To prevent database scanning on query:
+- **Redis Pub/Sub Eviction**: When a user submits a score to PostgreSQL, the node publishes an eviction message to a Redis Pub/Sub channel.
+- **Lazy Reload**: Listening cluster nodes evict their local rank caches and lazily rebuild them from the DB on the next read.
+- **Tournament Scheduler**: A background scheduler processes Cron reset patterns, tracks active tournament occurrences, and handles reward dispatch hooks.
+
+### 4.6 Ephemeral Party Registry
+Ephemeral parties are session-based structures kept entirely in thread-safe local memory registries.
+- **Leader Promotion**: If the leader disconnects, the registry waits for the session recovery grace window (30s) before promoting the longest-joined member or tearing down the party.
+- **Validation**: Enforces capacity limits and invitation constraints atomically in-memory.
 
 ---
 

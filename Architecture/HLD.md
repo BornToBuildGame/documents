@@ -216,6 +216,55 @@ sequenceDiagram
 
 ---
 
-## 7. Linked Documents
+---
+
+## 8. Leaderboard & Tournament Design
+
+Leaderboards and Tournaments build on PostgreSQL storage with in-memory rank caching for fast O(1) reads.
+
+```mermaid
+flowchart TD
+    Update[Client/Match submits score] --> DB[Write leaderboard_record to DB]
+    DB --> Evict[Publish evict event to Redis Pub/Sub]
+    Evict --> EvictLocal[All nodes evict local rank cache]
+    Read[Client reads leaderboard] --> CacheCheck{Cache exists locally?}
+    CacheCheck -->|Yes| Return[Return sorted placement]
+    CacheCheck -->|No| DBRead[Load top records from DB]
+    DBRead --> Rebuild[Rebuild sorted local memory cache]
+    Rebuild --> Return
+```
+
+### 8.1 Active Tournament Scheduler
+- A background scheduler runs every **30 seconds** on each node.
+- It parses cron schedules for active tournaments and updates their occurrence bounds.
+- Upon occurrence expiration, it fires `OnTournamentEnd` hooks to distribute rewards transactionally.
+
+---
+
+## 9. Ephemeral Party Gateway
+
+Parties are ephemeral, session-based lobby structures held entirely in-memory.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor L as Leader (Player A)
+    participant S as Server Node
+    actor G as Guest (Player B)
+
+    L->>S: WS: party_create {max_size: 4}
+    S->>S: Store PartySession in thread-safe local registry
+    S-->>L: WS: party_created {party_id}
+    L->>S: WS: party_invite {user_id: B}
+    S-->>G: WS: party_invite {party_id, sender: A}
+    G->>S: WS: party_join {party_id}
+    S->>S: Add B to PartySession.Members
+    S-->>L: WS: party_presence_event {joins: [B]}
+    S-->>G: WS: party_presence_event {joins: [A, B]}
+```
+
+---
+
+## 10. Linked Documents
 - [SAD (Software Architecture Document)](./SAD.md)
 - [TDD Index](../TDD/00_index.md) (Technical Design Documents Index)
