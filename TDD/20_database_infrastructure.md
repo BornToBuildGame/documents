@@ -103,41 +103,48 @@ When attempting to connect to PostgreSQL at startup:
      - Sleep for $\text{delay}$ duration.
 3. If loop exits without success, raise fatal error and abort startup.
 
-### Go Database Connection Pooling Initialization Example
+### Go Database Connection Pooling Initialization Example (using `pgxpool` & `zap`)
 
 ```go
 package main
 
 import (
 	"context"
-	"database/sql"
-	"log"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
-func InitDatabasePool(driverName string, dataSourceName string, maxOpen int, maxIdle int, maxLifetime time.Duration) (*sql.DB, error) {
-	db, err := sql.Open(driverName, dataSourceName)
+func InitDatabasePool(ctx context.Context, connString string, maxOpen int, maxIdle int, maxLifetime time.Duration, logger *zap.Logger) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(connString)
 	if err != nil {
 		return nil, err
 	}
 
 	// Configure pool parameters
-	db.SetMaxOpenConns(maxOpen)
-	db.SetMaxIdleConns(maxIdle)
-	db.SetConnMaxLifetime(maxLifetime)
+	config.MaxConns = int32(maxOpen)
+	config.MinConns = int32(maxIdle)
+	config.MaxConnLifetime = maxLifetime
+
+	// Initialize pgx pool
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, err
+	}
 
 	// Verify connectivity using backoff
 	retryDelay := 1 * time.Second
 	var pingErr error
 	for i := 0; i < 5; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		pingErr = db.PingContext(ctx)
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		pingErr = pool.Ping(pingCtx)
 		cancel()
 		if pingErr == nil {
-			log.Println("Database connection established successfully")
-			return db, nil
+			logger.Info("Database connection established successfully")
+			return pool, nil
 		}
-		log.Printf("Database connection attempt failed: %v. Retrying in %v...", pingErr, retryDelay)
+		logger.Warn("Database connection attempt failed, retrying...", zap.Error(pingErr), zap.Duration("retry_delay", retryDelay))
 		time.Sleep(retryDelay)
 		retryDelay *= 2
 	}

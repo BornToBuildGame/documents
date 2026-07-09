@@ -145,10 +145,11 @@ CREATE INDEX IF NOT EXISTS idx_users_notes_user_id ON users_notes(user_id);
 4. If not, the request terminates immediately with `403 Forbidden`.
 
 ### Player Search Query Implementation
-Admin search requests use ILIKE pattern matching across user profiles. To avoid table scans on millions of rows:
-1. Trigram index `idx_users_display_name_trgm` supports fast substring searches on `display_name`.
+Admin search requests use ILIKE pattern matching or Bleve full-text indexing. To avoid database degradation:
+1. Trigram index `idx_users_display_name_trgm` supports fast database substring searches on `display_name`.
 2. A hard execution timeout of **5 seconds** and a limit of **50 records** are enforced.
-3. If search inputs are too generic (e.g., less than 3 characters), the API rejects the request to prevent performance degradation.
+3. If search inputs are too generic (e.g., less than 3 characters), the API rejects database-level searches to prevent performance spikes.
+4. For advanced querying and logging indexation, the system uses Bleve (`github.com/blevesearch/bleve`) to build full-text search indexes on player metadata, console settings, and audit logs. This provides fuzzy matching and pagination capabilities offloaded from the primary datastore.
 
 ---
 

@@ -145,9 +145,18 @@ Custom RPC functions, matchmaking filters, and game loop updates execute in memo
 - **Input Filtering**: Enforce 4 KB payload size caps on all WebSocket and RPC incoming payloads.
 - **TLS Hardening**: Disable legacy TLS versions; support TLS 1.3 only with AES-GCM and ChaCha20-Poly1305 cipher suites.
 
+## 7. Core Third-Party Libraries & Dependencies
+
+The server leverages several high-performance, industry-standard Go libraries to optimize execution speed, data throughput, and index structures:
+
+- **`pgx` ([github.com/jackc/pgx](https://github.com/jackc/pgx)):** Used as the primary PostgreSQL database driver and connection pool toolkit (`pgxpool`). It supports native PostgreSQL binary protocol, pipeline mode, and optimized JSONB encoding/decoding.
+- **`zap` ([github.com/uber-go/zap](https://github.com/uber-go/zap)):** Structured, leveled, and extremely low-allocation logging framework. Essential for maintaining high throughput under peak console audit log generation and operational tracing.
+- **`bleve` ([github.com/blevesearch/bleve](https://github.com/blevesearch/bleve)):** Go-native full-text indexing and search engine. Used for advanced administrative searches (e.g., player profile querying, log analytics, and setting lookups within the Console Admin panel).
+- **`roaring` ([github.com/RoaringBitmap/roaring](https://github.com/RoaringBitmap/roaring)):** High-performance compressed roaring bitmap implementation. Used for fast set operations, such as computing intersections between player friends list and cluster-wide online presence states.
+
 ---
 
-## 7. Linked Documents
+## 8. Linked Documents
 - [BRD Index](../BRD/00_index.md) (Business Requirements Index)
 - [PRD Index](../PRD/00_index.md) (Product Requirements Index)
 - [TDD Index](../TDD/00_index.md) (Technical Design Index)

@@ -135,6 +135,7 @@ func AddFriendTransaction(ctx context.Context, db *sql.DB, sourceID, destID stri
 - **Max Friends Per User**: Cap at **1,000 mutual friends** (state=0 edges) per user. Beyond this, reject new friend additions with `RESOURCE_EXHAUSTED`.
 - **Edge Query Optimization**: Friend list queries use the composite index `idx_user_edge_source_lookup`. Ensure pagination is enforced (max 100 per page) and cursor-based to avoid OFFSET performance degradation.
 - **Transaction Isolation**: Friend edge mutations use `READ COMMITTED` isolation level. The bidirectional insert transaction is lightweight (2 upserts) and should complete within 10ms.
+- **Online Presence Intersections via Roaring Bitmaps**: Computing which friends are online leverages roaring bitmaps (`github.com/RoaringBitmap/roaring`). Player IDs in active connections are mapped to highly compressed bitsets, enabling sub-millisecond set intersections to compute online lists.
 
 ### Security
 - **Friend Request Spam Prevention**:
