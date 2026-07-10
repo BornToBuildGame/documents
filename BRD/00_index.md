@@ -4,13 +4,13 @@
 > **Version:** 1.2  
 > **Last Updated:** 2026-07-01  
 > **Status:** Draft  
-> **Reference Architecture:** [Ultimate Game Engine](https://heroiclabs.com/nakama/) — The leading open-source game backend by Heroic Labs
+> **Reference Architecture:** [Reference Engine Specification](https://heroiclabs.com/reference-engine/) — The leading open-source game backend
 
 ---
 
 ## Overview
 
-This directory contains the Business Requirements Documents (BRD) for the **Ultimate Game Engine Multiplayer Game Server**. The server follows [Ultimate Game Engine](https://heroiclabs.com/nakama/), the leading open-source game backend framework for building online multiplayer games. It provides a complete backend infrastructure enabling developers to focus on gameplay rather than backend engineering.
+This directory contains the Business Requirements Documents (BRD) for the **Ultimate Game Engine Multiplayer Game Server**. The server follows the reference architecture of a leading open-source game backend framework for building online multiplayer games. It provides a complete backend infrastructure enabling developers to focus on gameplay rather than backend engineering.
 
 The server is designed for use with the following game engines and frameworks:
 

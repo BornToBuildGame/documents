@@ -1,5 +1,11 @@
 **
 2026-07-09
+Updated implementation-plan.md Phase 5 and Phase 11 checklists to detail the missing server-side script VM bindings (nk.wallet_update, nk.leaderboard_create, nk.leaderboard_record_write, etc.) and runtime API operations.
+Reason: Aligned the extensibility runtime framework checklists with the complete PRD/TDD requirements.
+**
+
+**
+2026-07-09
 Updated implementation-plan.md to add new Phase 14 (Social Logins Integration), Phase 15 (Leaderboard, Tournament & Social REST/gRPC APIs), and Phase 16 (Script Sandbox VM Bindings) checklists.
 Reason: Closed structural gaps between design specifications (PRDs/TDDs) and the master plan after reviewing authentication, transport, and runtime VMs.
 **

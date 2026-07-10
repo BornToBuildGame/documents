@@ -281,7 +281,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/heroiclabs/nakama-common/runtime"
+	"ultimate-game-server/internal/runtime"
 )
 
 // Intercept email auth to enforce domain restrictions.
@@ -314,6 +314,27 @@ func (m *GoRuntimeManager) safeInvoke(fn func() error) (err error) {
 	return fn()
 }
 ```
+
+---
+
+## 5.1 Script VM Global API Bindings (nk)
+
+To allow Lua and JavaScript VMs to execute core server operations, the runtime maps the following functions under the global `nk` package namespace:
+
+### 5.1.1 Wallet & Economy
+* **Lua**: `nk.wallet_update(user_id, changeset, metadata)` -> Returns `(new_wallet, error)`.
+* **JS**: `nk.walletUpdate(userId, changeset, metadata)` -> Returns `newWallet`.
+
+### 5.1.2 Leaderboards & Tournaments
+* **Lua**: `nk.leaderboard_create(id, authoritative, sort_order, operator, reset_schedule, metadata, enable_ranks)` -> Returns `error`.
+* **Lua**: `nk.leaderboard_record_write(id, owner_id, username, score, subscore, metadata)` -> Returns `(record, error)`.
+* **Lua**: `nk.tournament_create(id, authoritative, sort_order, operator, reset_schedule, metadata, title, description, category, start_time, end_time, duration, max_size, max_num_score, join_required, enable_ranks)` -> Returns `error`.
+* **Lua**: `nk.tournament_join(id, owner_id, username)` -> Returns `error`.
+* **JS**: Corresponding camelCase methods (`nk.leaderboardCreate`, `nk.leaderboardRecordWrite`, `nk.tournamentCreate`, `nk.tournamentJoin`).
+
+### 5.1.3 Notifications
+* **Lua**: `nk.notification_send(user_id, subject, content, code, sender_id, persistent)` -> Returns `error`.
+* **JS**: `nk.notificationSend(userId, subject, content, code, senderId, persistent)` -> Returns `undefined`.
 
 ---
 

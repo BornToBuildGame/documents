@@ -227,7 +227,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/heroiclabs/nakama-common/runtime"
+	"ultimate-game-server/internal/runtime"
 )
 
 func ClaimDailyReward(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.Module, payload string) (string, error) {

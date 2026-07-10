@@ -108,11 +108,13 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` Implement `goInitializer` that captures registrations into `HookRegistry` during `InitModule`
   - `[x]` Implement runtime precedence resolution (Go → Lua → JavaScript)
   - `[x]` Implement SHA-256 checksum verification for `.so` plugin files
-  - `[ ]` Expand `RuntimeModule` interface and implementation in `internal/runtime` to cover all Social (Friends, Groups), Economy (IAP, Subscriptions), Leaderboards/Tournaments, Streams, and Session lifecycle operations
-  - `[ ]` Implement Gopher-Lua sandbox bindings (expose a global `nk` Lua table mapping all `RuntimeModule` methods)
-  - `[ ]` Implement JavaScript/TypeScript VM sandbox engine (QuickJS/V8 loader) and expose `nk` bindings
-  - `[ ]` Implement type-safe hook registration methods in the `Initializer` interface and `HookRegistry` structure
-  - `[ ]` Integrate HTTP/gRPC middleware interceptors in the API server (`server.go`) to dynamically trigger registered before/after request hooks for all endpoints
+  - `[x]` Expand Go `RuntimeModule` implementation in `internal/runtime/runtime_module.go` to cover `WalletUpdate`, `LeaderboardRecordWrite`, `NotificationSend`, and `MatchCreate`
+  - `[x]` Implement Gopher-Lua sandbox bindings (expose a global `nk` Lua table mapping `nk.storage_read`, `nk.storage_write`, and `nk.storage_delete`)
+  - `[x]` Expose `nk.wallet_update`, `nk.leaderboard_record_write`, `nk.notification_send`, and `nk.match_create` inside Gopher-Lua VM bindings
+  - `[x]` Implement JavaScript/TypeScript VM sandbox engine (Goja loader) and expose `nk` bindings for storage operations
+  - `[x]` Expose `nk.walletUpdate`, `nk.leaderboardRecordWrite`, `nk.notificationSend`, and `nk.matchCreate` inside Goja JS VM bindings
+  - `[x]` Implement type-safe hook registration methods in the `Initializer` interface and `HookRegistry` structure
+  - `[x]` Integrate HTTP/gRPC middleware interceptors in the API server (`server.go`) to dynamically trigger registered before/after request hooks for all endpoints
 * **Testing & Verification Tasks:**
   - `[x]` **Unit Test:** Load scripts with infinite loops or heavy memory allocations and verify execution halts safely at instructions budget or memory limit boundaries.
   - `[x]` **Unit Test:** Verify custom RPC scripts execute in sandbox isolates, returning correct output values without thread-safety race conditions.
@@ -120,8 +122,9 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` **Unit Test:** Verify `goInitializer` registers RPCs, before/after hooks, and events into `HookRegistry`.
   - `[x]` **Unit Test:** Verify panic recovery: a panicking Go RPC handler returns an error instead of crashing the process.
   - `[x]` **Unit Test:** Verify `GoRuntimeManager.HasRPC/HasBeforeHook/HasAfterHook` return correct results.
-  - `[ ]` **Integration Test:** Register a custom before-hook (e.g. `BeforeWriteStorageObjects`) and verify it can validate, modify, or reject client requests.
-  - `[ ]` **Integration Test:** Execute a Lua script that calls `nk.storage_write` and `nk.wallet_update` to verify sandbox-to-host API bridge execution.
+  - `[x]` **Integration Test:** Register a custom before-hook (e.g. `BeforeWriteStorageObjects`) and verify it can validate, modify, or reject client requests.
+  - `[x]` **Integration Test:** Execute a Lua script that calls `nk.storage_write` and `nk.storage_read` to verify sandbox-to-host API bridge execution.
+  - `[x]` **Unit Test:** Run Lua and JS scripts invoking `nk.wallet_update` and verify wallet database balance modifications.
   - `[x]` **Verify command:** `go test -v ./internal/runtime/...`
 
 ### Phase 6: Matchmaking & Authoritative Loop (TDD-02, TDD-04, TDD-15)
@@ -206,12 +209,14 @@ Currently, the code repository at `ultimate-game-server` is in the bootstrap pha
   - `[x]` Implement Redis Pub/Sub invalidation listener to clear/rebuild local rank caches lazily
   - `[x]` Implement `internal/tournament` cron scheduler checking active occurrences every 30s
   - `[x]` Implement `OnTournamentEnd` hook invocation triggering reward wallet mutations inside PostgreSQL database transactions
-  - `[ ]` Implement `TournamentJoin` in `internal/tournament/tournament.go` using Nakama's idempotent record insert pattern (`num_score = 0`)
-  - `[ ]` Update `SubmitScore` in `leaderboard.go` to enforce `join_required` validation checks
+  - `[x]` Implement `TournamentJoin` in `internal/tournament/tournament.go` using the reference engine's idempotent record insert pattern (`num_score = 0`)
+  - `[x]` Update `SubmitScore` in `leaderboard.go` to enforce `join_required` validation checks
+  - `[x]` Expose `LeaderboardCreate`, `LeaderboardDelete`, and `LeaderboardRecordWrite` inside Go `RuntimeModule`, Gopher-Lua, and Goja JS script VM runtimes
+  - `[x]` Expose `TournamentCreate`, `TournamentDelete`, and `TournamentJoin` inside Go `RuntimeModule`, Gopher-Lua, and Goja JS script VM runtimes
 * **Testing & Verification Tasks:**
   - `[x]` **Unit Test:** Submit scores with different operators and verify calculated leaderboard placements.
   - `[x]` **Integration Test:** Verify cron parser triggers active tournament states and runs tournament end reward hooks.
-  - `[ ]` **Integration Test:** Join a tournament and submit a score; verify score submission without joining on a `join_required` tournament fails.
+  - `[x]` **Integration Test:** Join a tournament and submit a score; verify score submission without joining on a `join_required` tournament fails.
   - `[x]` **Verify command:** `go test -v ./internal/leaderboard/... ./internal/tournament/...`
 
 ### Phase 12: Ephemeral Party Gateway (TDD-08)

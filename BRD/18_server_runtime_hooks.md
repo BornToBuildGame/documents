@@ -228,7 +228,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/heroiclabs/nakama-common/runtime"
+	"ultimate-game-server/internal/runtime"
 )
 
 // InitModule is the entry point for all Go runtime modules.

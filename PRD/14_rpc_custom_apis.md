@@ -132,7 +132,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/heroiclabs/nakama-common/runtime"
+	"ultimate-game-server/internal/runtime"
 )
 
 // Go RPC handler receives logger, db, and nk in addition to context and payload.

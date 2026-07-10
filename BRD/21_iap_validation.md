@@ -6,7 +6,7 @@
 > **Last Updated:** 2026-07-01  
 > **Status:** Draft  
 > **Priority:** Must Have  
-> **Reference:** [Ultimate Game Engine IAP Validation](https://heroiclabs.com/docs/nakama/concepts/iap-validation/)
+> **Reference:** [Reference Engine IAP Validation Documentation](https://heroiclabs.com/docs/game-server/concepts/iap-validation/)
 ---
 ## 1. Purpose
 
